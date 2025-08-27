@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Listone Giocatori</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<style>
+/* Page specific minimal overrides (avoid duplicating design system) */
+#playersTable tbody td:first-child { text-align:left; }
+.inline-actions button { margin:0 2px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Listone</h1>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="clubs.html">Club</a>
+    <a href="asta.html">Asta</a>
+    <a href="competizioni.html">Competizioni</a>
+  </nav>
+</header>
+<main>
+  <section class="hero fade-in" style="margin-top:0;">
+    <h1 style="margin:0 0 6px;">Listone Giocatori</h1>
+    <p class="subtitle">Gestione elenco completo giocatori. Filtra per ruolo, ricerca per nome, visualizza quelli già assegnati e modifica anagrafiche. I giocatori già originali nell'altra divisione sono evidenziati.</p>
+    <div class="toolbar" style="margin-top:18px;">
+      <div id="divisionSwitch" class="toolbar-group"></div>
+      <input id="search" class="search-input" placeholder="Cerca nome" aria-label="Cerca giocatore" />
+      <select id="roleFilter" aria-label="Filtra per ruolo"><option value="">Ruolo</option></select>
+      <button id="showAssignedBtn" type="button" class="btn-secondary btn-sm">Già assegnati</button>
+    </div>
+  </section>
+  <section class="panel">
+    <h2 style="margin-top:0;">Importa / Aggiungi</h2>
+    <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start;">
+      <div style="flex:1 1 260px; min-width:240px;">
+        <h3 style="margin:4px 0 8px;font-size:15px;">Importa da CSV</h3>
+        <p style="margin:0 0 6px;font-size:12px;color:var(--color-text-muted);">Formato colonne: giocatore,squadra,ruoli,quotazione</p>
+        <input type="file" id="csvFile" accept=".csv,text/csv" />
+        <button id="importCsvBtn" class="btn-sm">Importa</button>
+        <small id="csvStatus" style="display:block;margin-top:4px;"></small>
+      </div>
+      <div style="flex:1 1 260px; min-width:240px;">
+        <h3 style="margin:4px 0 8px;font-size:15px;">Nuovo giocatore</h3>
+        <form id="addPlayerForm" style="display:flex; flex-direction:column; gap:6px;">
+          <input name="name" placeholder="Nome" required />
+            <input name="realClub" placeholder="Club reale" />
+            <input name="roles" placeholder="Ruoli (separati da , ; /)" />
+            <input name="quote" type="number" placeholder="Quotazione" />
+            <button class="btn-secondary btn-sm" style="align-self:flex-start;">Salva</button>
+        </form>
+      </div>
+    </div>
+  </section>
+  <section class="panel">
+    <h2 id="listTitle" style="margin-top:0;">Listone</h2>
+    <table id="playersTable" class="data-table table-compact">
+      <thead><tr>
+        <th class="sortable" data-sort="name" style="text-align:left;">Nome / Club reale</th>
+        <th class="sortable" data-sort="roles">Ruoli</th>
+  <th class="sortable" data-sort="quote">Quotazione</th>
+  <th aria-label="Azioni"></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="table-note">Mostra solo giocatori liberi nella divisione selezionata. Quelli originali nell'altra competizione sono evidenziati con sfondo tenue.</div>
+  </section>
+</main>
+<div id="modalRoot"></div>
+<div id="assignedRoot"></div>
+<div id="liveRegion" aria-live="polite" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;"></div>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData, saveData } from './src/js/storage.js';
+import { addPlayer } from './src/js/model.js';
+import { uiAlert, uiConfirm, announce } from './src/js/ui.js';
+(async () => {
+  await ensureAuth();
+  let data = await initData();
+  const roleOrder = data.rolesOrder || [];
+  const orderIndex = roleOrder.reduce((m,r,i)=>{m[r]=i;return m;},{});
+  const cleanRole = r => r.trim().toUpperCase();
+  const splitRolesString = str => str.replace(/\s+/g,'').split(/[;,/]/).map(cleanRole).filter(Boolean);
+  const sortRoles = roles => roles.slice().map(cleanRole).sort((a,b)=> (orderIndex[a]??99) - (orderIndex[b]??99));
+  const rolePrimaryIndex = roles => roles && roles.length ? Math.min(...roles.map(r => (orderIndex[cleanRole(r)]??999))) : 999;
+  const roleClass = r => { if (r==='POR') return 'role-gk'; if (['B','DC','DD','DS'].includes(r)) return 'role-def'; if (['E','M','C'].includes(r)) return 'role-mid'; if (['W','T'].includes(r)) return 'role-wing'; if (['A','PC'].includes(r)) return 'role-att'; return 'role-mid'; };
+  const roleBadgesHTML = roles => `<span class='role-badges'>${sortRoles(roles).map(r=>`<span class=\"role-badge ${roleClass(r)}\">${r}</span>`).join('')}</span>`;
+  const divisions = data.divisions || [];
+  let currentDivisionId = divisions[0]?.id || 'div_a';
+  data.players.forEach(p => { if (Array.isArray(p.roles)) { let nr=[]; let changed=false; p.roles.forEach(r=>{ if (/[;,/]/.test(r)) { nr.push(...splitRolesString(r)); changed=true; } else nr.push(cleanRole(r)); }); if (changed) p.roles = Array.from(new Set(nr)); p.roles = sortRoles(p.roles); } });
+  saveData(data);
+  const switchContainer = document.getElementById('divisionSwitch');
+  divisions.forEach(d => { const btn = document.createElement('button'); btn.className = 'switch-btn'+(d.id===currentDivisionId?' active':''); btn.dataset.div = d.id; btn.type='button'; btn.textContent = d.name; btn.addEventListener('click', () => { if (currentDivisionId===d.id) return; document.querySelectorAll('.switch-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); currentDivisionId = d.id; updateListTitle(); render(); announce('Divisione cambiata'); }); switchContainer.appendChild(btn); });
+  function updateListTitle(){ const div = divisions.find(x=>x.id===currentDivisionId); document.getElementById('listTitle').textContent = 'Listone ' + (div?div.name:''); }
+  updateListTitle();
+  const roleFilter = document.getElementById('roleFilter');
+  roleOrder.forEach(r => { const opt = document.createElement('option'); opt.value=r; opt.textContent=r; roleFilter.appendChild(opt); });
+  const tbody = document.querySelector('#playersTable tbody');
+  let sortField = 'name'; let sortDir = 1; // 1 asc, -1 desc
+  function playerAssignedInDivision(playerId, divisionId) { return data.clubs.some(c => c.divisionId === divisionId && c.roster.some(r => r.playerId === playerId && r.status==='active')); }
+  function playerOriginalInOtherDivision(playerId, divisionId) { if (playerAssignedInDivision(playerId, divisionId)) return false; for (const c of data.clubs) { if (c.divisionId === divisionId) continue; if (c.roster.some(r => r.playerId === playerId && r.status==='active' && r.original)) return true; } return false; }
+  function render(){ const term = document.getElementById('search').value.toLowerCase(); const rf = roleFilter.value; let list = data.players.filter(p => !playerAssignedInDivision(p.id, currentDivisionId)).filter(p => !term || p.name.toLowerCase().includes(term)).filter(p => !rf || p.roles.includes(rf)); list.sort((a,b) => { if (sortField === 'name') { const av=a.name.toLowerCase(), bv=b.name.toLowerCase(); if (av<bv) return -1*sortDir; if (av>bv) return 1*sortDir; return 0; } if (sortField === 'roles') { const ai = rolePrimaryIndex(a.roles), bi = rolePrimaryIndex(b.roles); if (ai!==bi) return (ai-bi)*sortDir; const ar=sortRoles(a.roles).join(','), br=sortRoles(b.roles).join(','); return ar.localeCompare(br)*sortDir; } if (sortField === 'quote') { return (a.quote - b.quote)*sortDir; } return 0; }); tbody.innerHTML=''; list.forEach(p => { const tr = document.createElement('tr'); const warn = playerOriginalInOtherDivision(p.id, currentDivisionId); if (warn) tr.classList.add('original-other'); tr.innerHTML = `<td style='text-align:left;'><span style='font-weight:600;'>${p.name}</span><br><span style='font-size:11px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:.5px;'>${p.realClub||''}</span>${warn?" <span class='badge-warning-soft'>ORIG altra</span>":''}</td>`+ `<td>${roleBadgesHTML(p.roles)}</td>`+ `<td>${p.quote}</td>`+ `<td class='inline-actions'><button class='btn-outline btn-sm' data-edit='${p.id}' aria-label='Modifica ${p.name}'>Mod</button><button class='btn-danger btn-sm' data-del='${p.id}' aria-label='Elimina ${p.name}'>Del</button></td>`; tbody.appendChild(tr); }); }
+  function openEditModal(player){ announce('Modifica giocatore '+player.name); import('./src/js/ui.js').then(()=>{}); const root = document.getElementById('modalRoot'); root.innerHTML = `<div class=\"modal-overlay\"><div class=\"modal\" role='dialog' aria-modal='true' aria-labelledby='editTitle'><h3 id='editTitle'>Modifica Giocatore</h3><form id='editPlayerForm' style='display:flex;flex-direction:column;gap:8px;'><label style='font-size:12px;font-weight:600;'>Nome <input name='name' value='${player.name}' required></label><label style='font-size:12px;font-weight:600;'>Club reale <input name='realClub' value='${player.realClub||''}'></label><label style='font-size:12px;font-weight:600;'>Ruoli <input name='roles' value='${sortRoles(player.roles).join(',')}'></label><label style='font-size:12px;font-weight:600;'>Quotazione <input name='quote' type='number' value='${player.quote}'></label><div class='modal-actions'><button type='button' id='cancelEdit' class='btn-outline btn-sm' data-modal-cancel='1'>Annulla</button><button type='submit' class='btn-sm'>Salva</button></div></form></div></div>`; document.getElementById('cancelEdit').addEventListener('click', ()=> { root.innerHTML=''; announce('Modifica annullata'); }); document.getElementById('editPlayerForm').addEventListener('submit', e => { e.preventDefault(); const fd = new FormData(e.target); player.name = fd.get('name').trim(); player.realClub = fd.get('realClub').trim(); player.roles = sortRoles(splitRolesString(fd.get('roles'))); player.quote = Number(fd.get('quote'))||0; saveData(data); root.innerHTML=''; render(); announce('Giocatore aggiornato'); }); }
+  function openAssignedPopup(){ announce('Elenco giocatori assegnati'); const root = document.getElementById('assignedRoot'); const entries = data.clubs.filter(c=>c.divisionId===currentDivisionId).flatMap(c => c.roster.filter(r=>r.status==='active').map(r=>({club:c,r}))); const grouped = new Map(); entries.forEach(e => { if(!grouped.has(e.r.playerId)) grouped.set(e.r.playerId, []); grouped.get(e.r.playerId).push(e); }); const rows = Array.from(grouped.entries()).map(([pid,list]) => { const p = data.players.find(pl=>pl.id===pid); if(!p) return ''; return list.map(e => { const badge = e.r.original ? '<span class="badge-original">ORIG</span>' : '<span class="badge-duplicate">DUP</span>'; return `<tr><td style='text-align:left;'>${p.name} ${badge}<br><span style='font-size:10px;color:var(--color-text-muted);'>${p.realClub||''}</span></td><td>${roleBadgesHTML(p.roles)}</td><td>${p.quote}</td><td>${e.r.wage}</td><td>${e.club.name}</td></tr>`; }).join(''); }).join(''); root.innerHTML = `<div class='modal-overlay'><div class='modal' role='dialog' aria-modal='true' aria-labelledby='assTitle'><h3 id='assTitle'>Già assegnati (${divisions.find(d=>d.id===currentDivisionId)?.name||''})</h3><div style='max-height:60vh;overflow:auto;'><table class='data-table table-compact'><thead><tr><th>Nome</th><th>Ruoli</th><th>Quota attuale</th><th>Stip.</th><th>Club</th></tr></thead><tbody>${rows}</tbody></table></div><div class='modal-actions'><button id='closeAssigned' class='btn-outline btn-sm' data-modal-cancel='1'>Chiudi</button></div></div></div>`; document.getElementById('closeAssigned').addEventListener('click', ()=> { root.innerHTML=''; announce('Popup chiuso'); }); }
+  document.getElementById('playersTable').addEventListener('click', async e => { if (e.target.dataset.edit) { const player = data.players.find(pl => pl.id === e.target.dataset.edit); if (player) openEditModal(player); } if (e.target.dataset.del) { const id = e.target.dataset.del; if (!(await uiConfirm('Eliminare il giocatore?'))) return; const assigned = data.clubs.some(c => c.roster.some(r => r.playerId === id && r.status==='active')); if (assigned) { uiAlert('Giocatore assegnato: non eliminabile'); return; } data.players = data.players.filter(p => p.id !== id); saveData(data); render(); announce('Giocatore eliminato'); } });
+  document.querySelectorAll('th.sortable').forEach(th => { th.tabIndex=0; th.setAttribute('role','columnheader'); th.addEventListener('click', () => { const field = th.dataset.sort; if (sortField === field) { sortDir *= -1; } else { sortField = field; sortDir = 1; } updateSortIndicators(); render(); announce('Ordinato per '+field+' '+(sortDir===1?'crescente':'decrescente')); }); th.addEventListener('keydown', e=> { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); th.click(); } }); });
+  function updateSortIndicators(){ document.querySelectorAll('th.sortable').forEach(th=> { const active= th.dataset.sort===sortField; th.setAttribute('aria-sort', active ? (sortDir===1?'ascending':'descending') : 'none'); th.classList.remove('asc','desc'); if(active) th.classList.add(sortDir===1?'asc':'desc'); }); }
+  document.getElementById('showAssignedBtn').addEventListener('click', openAssignedPopup);
+  document.getElementById('search').addEventListener('input', ()=> { render(); announce('Ricerca aggiornata'); });
+  roleFilter.addEventListener('change', ()=> { render(); announce('Filtro ruolo applicato'); });
+  document.getElementById('addPlayerForm').addEventListener('submit', e => { e.preventDefault(); const fd = new FormData(e.target); addPlayer(data, { name: fd.get('name'), realClub: fd.get('realClub'), roles: sortRoles(splitRolesString(fd.get('roles')||'')), quote: fd.get('quote') }); render(); e.target.reset(); announce('Giocatore aggiunto'); });
+  function parseCSV(text) { const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0); return lines.map(line => { const semi = (line.match(/;/g)||[]).length; const comma=(line.match(/,/g)||[]).length; const delim = semi>comma?';':','; const out=[]; let cur=''; let inQuotes=false; for(let i=0;i<line.length;i++){ const ch=line[i]; if(ch==='"'){ inQuotes=!inQuotes; continue;} if(ch===delim && !inQuotes){ out.push(cur.trim()); cur=''; } else cur+=ch; } out.push(cur.trim()); return out; }); }
+  async function handleCsvImport(file) { const status = document.getElementById('csvStatus'); status.textContent='Lettura...'; const content = await file.text(); const rows = parseCSV(content); let added=0, updated=0; rows.forEach(cols => { const [giocatore, squadra, ruoli, quotazione] = cols; if(!giocatore) return; const existing = data.players.find(p => p.name.toLowerCase() === giocatore.toLowerCase()); const rolesArr = sortRoles(splitRolesString(ruoli||'')); const qNum=Number(quotazione)||0; if(existing){ existing.realClub = squadra || existing.realClub; if(rolesArr.length) existing.roles = rolesArr; if(qNum) existing.quote=qNum; updated++; } else { addPlayer(data,{ name:giocatore, realClub:squadra, roles:rolesArr, quote:qNum }); added++; } }); saveData(data); render(); status.textContent=`Import completato. Aggiunti: ${added}, aggiornati: ${updated}`; announce('Import completato'); }
+  document.getElementById('importCsvBtn').addEventListener('click', () => { const fileInput = document.getElementById('csvFile'); if(!fileInput.files[0]) { uiAlert('Seleziona un file CSV'); return; } handleCsvImport(fileInput.files[0]); });
+  updateSortIndicators();
+  render();
+})();
+</script>
+</body>
+</html>
