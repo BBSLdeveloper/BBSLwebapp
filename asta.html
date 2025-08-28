@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Asta - Bar Birsa Super League Official App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<!-- Inline styles removed; all moved into styles.css -->
+</head>
+<body>
+<header class="global-top-bar site-nav">
+  <div class="brand"><span class="dot"></span><span>BBSL</span></div>
+  <nav aria-label="Navigazione principale">
+    <a href="home.html">Home</a>
+    <a href="clubs.html">Club</a>
+    <a href="competizioni.html">Competizioni</a>
+    <a href="listone.html">Listone</a>
+    <a href="asta.html">Asta</a>
+  <a href="albo.html">Albo d'oro</a>
+  <a href="index.html">Savegame</a>
+  </nav>
+</header>
+<main>
+  <section id="auctionHero" class="hero fade-in" style="margin-top:0;">
+    <h1 style="margin:0 0 8px;">Sessione Asta</h1>
+  <p class="subtitle">Gestione live degli acquisti per la divisione selezionata. Filtra tra aste e stagioni e assegna acquisti aggiornando automaticamente budget e ingaggi.</p>
+  <div id="divisionSwitch" class="toolbar" style="margin-top:16px;"></div>
+    <div class="toolbar" style="margin-top:4px;">
+  <label style="font-size:13px;">Seleziona asta: <select id="auctionPhase" class="btn-sm" style="margin:0 0 0 6px; padding:6px 10px;"><option value="estiva1">Asta estiva</option><option value="estiva2">Asta di riparazione</option><option value="invernale">Asta invernale</option></select></label>
+  <label style="font-size:13px;">Stagione: <select id="auctionYear" class="w-110" style="margin-left:6px; padding:6px 10px;"></select></label>
+  <span id="auctionSessionDisplay" class="pill pill-neutral" style="margin-left:8px;">-</span>
+    </div>
+  <div id="auctionHeroLogoBox" class="hero-division-logo" aria-hidden="false"></div>
+  </section>
+  <section class="panel panel-compact" id="newAcquistoPanel">
+    <div class="auction-new-header">
+      <h2>Nuovo Acquisto</h2>
+    </div>
+    <form id="assignForm" class="auction-new-form" autocomplete="off">
+      <label class="inline-field">
+        <span class="sr-only">Club</span>
+        <select name="clubId" id="clubSelect" required class="w-140"><option value="">Club</option></select>
+      </label>
+      <div class="inline-field search-field" style="position:relative;">
+        <input id="playerSearch" placeholder="Cerca giocatore libero" autocomplete="off" class="w-200" />
+        <div id="playerSuggestions" class="suggestions" style="width:260px;"></div>
+      </div>
+      <label class="inline-field">
+        <span class="sr-only">Prezzo</span>
+        <input name="price" type="number" min="0" placeholder="Prezzo" class="w-90" required />
+      </label>
+  <button class="btn-sm" style="flex:0 0 auto;">Compra</button>
+  <button type="button" id="undoLastBtn" class="btn-sm btn-outline" title="Annulla ultimo acquisto divisione" style="flex:0 0 auto;">Annulla ultimo</button>
+      <small class="note">Contratto annuale (stipendio = 25% quotazione).</small>
+    </form>
+  </section>
+  <section id="auctionBoards" class="h-scroll" aria-label="Board acquisti club"></section>
+  <section id="sandboxSection" class="panel" style="margin-top:18px;">
+    <div id="sandboxHeader" class="sandbox-header">
+      <div class="sh-logo" aria-hidden="true"></div>
+      <div class="sh-text">
+        <h2 class="sh-title">La mia asta</h2>
+        <div id="shClubName" class="sh-club-name">Seleziona un club</div>
+      </div>
+      <div id="shStats" class="sh-stats" aria-live="polite"></div>
+    </div>
+    <div class="toolbar" style="align-items:flex-end;">
+      <label>Identificativo personale: <input id="sandboxUserId" placeholder="es. nick" class="w-110"></label>
+      <button id="sandboxSetUserBtn" class="btn-sm">Imposta / Carica</button>
+  <label>Club ufficiale: <select id="sbClubSelect" class="w-110"><option value="">--</option></select></label>
+      <button id="sandboxExportBtn" class="btn-sm" disabled>Esporta</button>
+      <label style="display:inline-flex; align-items:center; gap:4px;">Importa <input type="file" id="sandboxImportInput" style="display:none;" accept="application/json"><button id="sandboxImportBtn" class="btn-sm" disabled>File</button></label>
+      <button id="sandboxResetBtn" class="btn-sm btn-outline" disabled>Reset</button>
+      <span id="sandboxStatus" style="font-size:12px;color:#555;"></span>
+    </div>
+    <div id="sandboxContent" style="display:none;">
+      <details open>
+        <summary style="cursor:pointer;font-weight:600;">Formazione tipo</summary>
+        <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:20px;">
+          <div style="flex:1 1 320px; min-width:300px;">
+            <div style="margin-top:8px;">
+              <label style="font-size:12px;">Seleziona modulo: <select id="sbModuleSelect" style="font-size:12px;"></select></label>
+            </div>
+            <div id="sbField"></div>
+          </div>
+          <div style="flex:1 1 320px; min-width:300px;">
+            <h3>Simulazione Rosa</h3>
+            <div id="sbRosterSummary" style="font-size:11px; margin:4px 0 6px; font-weight:600;">-</div>
+            <table class="data-table table-compact" aria-label="Rosa Sandbox">
+              <thead><tr>
+                <th class="sortable" data-sb-sort="name" style="text-align:left;">Giocatore</th>
+                <th class="sortable" data-sb-sort="roles">Ruoli</th>
+                <th class="sortable" data-sb-sort="wage">Stipendio</th>
+                <th>Anni</th><th></th></tr></thead>
+              <tbody id="sbRosterBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+      <details style="margin-top:16px;" open>
+        <summary style="cursor:pointer;font-weight:600;">Appunti</summary>
+        <div id="appuntiLegend" class="sb-appunti-legend">
+          <span><span class="inline-color" style="background:#86efac;border-color:#65a30d;"></span>Nella mia rosa</span>
+          <span><span class="inline-color" style="background:#fde68a;border-color:#d97706;"></span>Originale nell'altra divisione</span>
+          <span><span class="inline-color" style="background:#fecaca;border-color:#dc2626;"></span>In un'altra squadra della stessa divisione</span>
+        </div>
+        <div style="margin:10px 0;">
+          <button id="sbCreateAppuntiBtn" class="btn-sm">Crea appunti</button>
+        </div>
+        <div id="sbAppuntiContainer" style="display:flex; flex-direction:column; gap:20px;"></div>
+      </details>
+    </div>
+  </section>
+</main>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData, saveData } from './src/js/storage.js';
+import { signPlayerToClub, addFinancialTransaction, syncAllClubBudgets, currentSeasonYear, normalizeTransactionsSchema, recomputeClubTransactions, recalcClubWage } from './src/js/model.js';
+import { loadSandbox, saveSandbox, resetSandbox, exportSandbox, importSandbox, getCurrentSandboxUserId, setCurrentSandboxUserId } from './src/js/sandbox.js';
+import { uiAlert, uiConfirm, uiPrompt, wageCellHTML, applyWageIntensity, announce } from './src/js/ui.js';
+(async () => {
+  await ensureAuth();
+  (function markCurrent(){ const cur=location.pathname.split('/').pop().toLowerCase(); document.querySelectorAll('.site-nav nav a').forEach(a=>{ if(a.getAttribute('href').toLowerCase()===cur){ a.classList.add('active'); a.setAttribute('aria-current','page'); } }); })();
+  let data = await initData();
+  normalizeTransactionsSchema(data);
+  data.meta = data.meta || {};
+  data.meta.currentAuction = data.meta.currentAuction || { year: currentSeasonYear(), phase: 'estiva1' };
+  syncAllClubBudgets(data);
+  const phaseSelect = document.getElementById('auctionPhase');
+  const yearInput = document.getElementById('auctionYear');
+  // Populate stagione options (2015/16 -> current + 1 maybe)
+  (function populateSeasons(){
+    if(!yearInput) return; yearInput.innerHTML='';
+    const start = 2015; const current = new Date().getFullYear();
+    for(let y=current+1; y>=start; y--){ // go downwards so recent first
+      const next = (y+1).toString().slice(2); // last two digits
+      const label = `${y}/${next}`;
+      const opt=document.createElement('option'); opt.value=String(y); opt.textContent=label; yearInput.appendChild(opt);
+    }
+  })();
+  const sessionDisplay = document.getElementById('auctionSessionDisplay');
+  const phaseLabels = { estiva1: 'Asta estiva 1', estiva2: 'Asta estiva 2', invernale: 'Asta invernale' };
+  function formatSeasonLabel(year){ const next=String((Number(year)+1)).slice(2); return `${year}/${next}`; }
+  function refreshAuctionSessionUI(){ phaseSelect.value = data.meta.currentAuction.phase; yearInput.value = data.meta.currentAuction.year; sessionDisplay.textContent = phaseLabels[data.meta.currentAuction.phase] + ' ' + formatSeasonLabel(data.meta.currentAuction.year); }
+  phaseSelect.addEventListener('change', () => { data.meta.currentAuction.phase = phaseSelect.value; saveData(data); refreshAuctionSessionUI(); renderBoards(); announce('Fase asta cambiata'); });
+  yearInput.addEventListener('change', () => { data.meta.currentAuction.year = Number(yearInput.value)||currentSeasonYear(); saveData(data); refreshAuctionSessionUI(); renderBoards(); announce('Stagione asta aggiornata'); });
+  refreshAuctionSessionUI();
+
+  const divisions = data.divisions || [];
+  let currentDivisionId = divisions[0]?.id;
+  const divSwitch = document.getElementById('divisionSwitch');
+  function deriveDivisionColors(divId){
+    // 1. meta.competitions colors if present
+    const metaColors = data.meta?.competitions?.[divId]?.colors;
+    if(Array.isArray(metaColors) && metaColors.length){
+      const c1 = metaColors[0];
+      const c2 = metaColors[1] || metaColors[0];
+      return [c1,c2];
+    }
+    // 2. Aggregate from clubs in division: frequency of first colors
+    const clubs = data.clubs.filter(c=>c.divisionId===divId && Array.isArray(c.colors));
+    if(clubs.length){
+      const freq = new Map();
+      clubs.forEach(c=>{ const col = c.colors[0]; if(col) freq.set(col,(freq.get(col)||0)+1); });
+      const sorted = Array.from(freq.entries()).sort((a,b)=> b[1]-a[1]);
+      const primary = sorted[0]?.[0] || '#2563eb';
+      // pick most distinct secondary among club second colors else fallback darker shade
+      const secondPool = clubs.map(c=> c.colors[1]).filter(Boolean);
+      let secondary = secondPool.find(col=> col!==primary) || primary;
+      return [primary, secondary];
+    }
+    return ['#2563eb','#1e3a8a'];
+  }
+  function updateHeroColors(){
+    const hero = document.getElementById('auctionHero'); if(!hero) return;
+    const [c1,c2] = deriveDivisionColors(currentDivisionId);
+    hero.style.background = `linear-gradient(115deg, ${c1} 0%, ${c2} 70%)`;
+    const box = document.getElementById('auctionHeroLogoBox'); if(box){
+      const division = divisions.find(d=>d.id===currentDivisionId);
+      const customMeta = data.meta?.competitions?.[currentDivisionId];
+      let logo = customMeta?.logo;
+      if(!logo){
+        // fallback: first club logo in division
+        const clubWithLogo = data.clubs.find(c=> c.divisionId===currentDivisionId && c.logo);
+        if(clubWithLogo) logo = clubWithLogo.logo;
+      }
+      if(logo){
+        box.innerHTML = `<img src="${logo}" alt="Logo ${division?.name||''}">`;
+      } else {
+        const initials = division?.name?.split(/\s+/).map(w=>w[0]).slice(0,3).join('') || '?';
+        box.textContent = initials;
+      }
+    }
+  }
+  divisions.forEach(d => { const b = document.createElement('button'); b.textContent=d.name; b.className='switch-btn'+(d.id===currentDivisionId?' active':''); b.type='button'; b.addEventListener('click',()=>{ if(currentDivisionId===d.id) return; currentDivisionId=d.id; document.querySelectorAll('#divisionSwitch .switch-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); refreshClubSelect(); renderBoards(); refreshSuggestions(); updateHeroColors(); announce('Divisione cambiata'); }); divSwitch.appendChild(b); });
+  updateHeroColors();
+
+  const orderIndex = (data.rolesOrder||[]).reduce((m,r,i)=>{m[r]=i;return m;},{});
+  const sortRoles = roles => roles.slice().sort((a,b)=> (orderIndex[a]??99)-(orderIndex[b]??99));
+  const roleClass = r => { if (r==='POR') return 'role-gk'; if (['B','DC','DD','DS'].includes(r)) return 'role-def'; if (['E','M','C'].includes(r)) return 'role-mid'; if (['W','T'].includes(r)) return 'role-wing'; if (['A','PC'].includes(r)) return 'role-att'; return 'role-mid'; };
+  const roleBadgesHTML = roles => `<span class='role-badges'>${sortRoles(roles).map(r=>`<span class=\"role-badge ${roleClass(r)}\">${r}</span>`).join('')}</span>`;
+  function playerAssignedInDivision(playerId, divisionId){ return data.clubs.some(c=>c.divisionId===divisionId && c.roster.some(r=>r.playerId===playerId && r.status==='active')); }
+  function playerOriginalInOtherDivision(playerId, divisionId){ if(playerAssignedInDivision(playerId, divisionId)) return false; for(const c of data.clubs){ if(c.divisionId===divisionId) continue; if(c.roster.some(r=>r.playerId===playerId && r.status==='active' && r.original)) return true; } return false; }
+
+  const clubSelect = document.getElementById('clubSelect');
+  function refreshClubSelect(){ clubSelect.innerHTML='<option value="">Club</option>'; data.clubs.filter(c=>c.divisionId===currentDivisionId).forEach(c=>{ const o=document.createElement('option'); o.value=c.id; o.textContent = `${c.name} (Bdg ${c.budget})`; clubSelect.appendChild(o); }); }
+  refreshClubSelect();
+
+    // Apri la tendina club al passaggio del mouse o focus
+    clubSelect.addEventListener('mouseenter', () => { clubSelect.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); });
+    clubSelect.addEventListener('focus', () => { clubSelect.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); });
+
+  const playerInput = document.getElementById('playerSearch');
+  const suggestions = document.getElementById('playerSuggestions');
+  let chosenPlayer = null;
+  function refreshSuggestions(){
+    const term = playerInput.value.toLowerCase();
+    suggestions.innerHTML='';
+    if(!term) return;
+    data.players.filter(p=> p.name.toLowerCase().includes(term) && !playerAssignedInDivision(p.id, currentDivisionId))
+      .slice(0,15)
+      .forEach(p=>{
+        const warn = playerOriginalInOtherDivision(p.id, currentDivisionId);
+        const div=document.createElement('div');
+        div.className='suggestion-item';
+        if(warn) div.classList.add('orig-other');
+        const sorted = sortRoles(p.roles).slice(0,3);
+        const slotsHTML = [0,1,2].map(i=> {
+          const r = sorted[i];
+          if(!r) return `<span class='role-slot empty'></span>`;
+          return `<span class='role-slot'><span class="role-badge ${roleClass(r)}" style="width:18px;height:18px;font-size:8px;">${r}</span></span>`;
+        }).join('');
+        div.innerHTML = `<span class='si-name'>${p.name}</span><span class='si-quote'>${p.quote}</span><span class='si-roles roles-3fix roles-small'>${slotsHTML}</span>`;
+        div.addEventListener('click',()=>{ chosenPlayer=p; playerInput.value=p.name; suggestions.innerHTML=''; announce('Selezionato '+p.name); });
+        suggestions.appendChild(div);
+      });
+  }
+  playerInput.addEventListener('input', ()=>{ chosenPlayer=null; refreshSuggestions(); });
+  document.addEventListener('click', e=>{ if(!suggestions.contains(e.target) && e.target!==playerInput) suggestions.innerHTML=''; });
+
+  document.getElementById('assignForm').addEventListener('submit', async e => {
+    e.preventDefault(); if(!chosenPlayer){ return uiAlert('Seleziona un giocatore dai suggerimenti'); }
+    const fd = new FormData(e.target); const clubId = fd.get('clubId'); const price = Number(fd.get('price'))||0;
+    if(!clubId){ return uiAlert('Seleziona un club'); }
+    const club = data.clubs.find(c=>c.id===clubId); if(!club || club.divisionId!==currentDivisionId){ return uiAlert('Club non valido per divisione'); }
+    if(price<0){ return uiAlert('Prezzo non valido'); }
+    if(club.budget < price){ return uiAlert('Budget insufficiente'); }
+    try { 
+      signPlayerToClub(data, clubId, chosenPlayer.id, 1, chosenPlayer.quote); 
+      const clubRoster = data.clubs.find(c=>c.id===clubId)?.roster||[]; 
+      const entry = clubRoster.slice().reverse().find(r=>r.playerId===chosenPlayer.id); 
+      if(entry) entry.purchasePrice = price; 
+      const { year, phase } = data.meta.currentAuction; 
+  // Calcola seq cronologico per questa asta (fase+anno) nel club
+  const existingTxs = (club.transactions||[]).filter(t=> t.meta?.type==='acquisto' && t.meta?.auction && t.meta.auction.phase===phase && String(t.meta.auction.year)===String(year));
+  const nextSeq = 1 + existingTxs.reduce((max,t)=> Math.max(max, t.meta?.auction?.seq||0), 0);
+  addFinancialTransaction(data, clubId, { description:`Acquisto ${chosenPlayer.name}`, sign:'-', amount:price, meta:{ type:'acquisto', playerId: chosenPlayer.id, divisionId: currentDivisionId, auction:{ year, phase, seq: nextSeq } } }); 
+      // Automatismo 1: se il club è quello selezionato nel sandbox, aggiungi player a rosterPlans e, se possibile, in formazione
+      if(sandbox && sandbox.officialClubId === clubId){
+        // Aggiungi a rosterPlans con durata/wage default se non presente
+        if(!sandbox.rosterPlans[chosenPlayer.id]){
+          sandbox.rosterPlans[chosenPlayer.id] = { years:1, wage: Math.round(chosenPlayer.quote * 0.25 * 1000)/1000 };
+        }
+        // Prova ad assegnare ad uno slot libero (main preferito) compatibile con i ruoli del giocatore
+        try {
+          const roles = chosenPlayer.roles || [];
+          ensureFormationPositions();
+          let placed=false;
+          // 1. tenta slot main vuoto
+            outer: for(const line of sandbox.formation.positions){
+              for(const slot of line){
+                if(!slot.main && slot.roleOptions.some(r=> roles.includes(r))){ slot.main = chosenPlayer.id; placed=true; break outer; }
+              }
+            }
+          // 2. se non piazzato, tenta una riserva libera
+          if(!placed){
+            outer2: for(const line of sandbox.formation.positions){
+              for(const slot of line){
+                while(slot.reserves.length<2) slot.reserves.push(null);
+                const idx = slot.roleOptions.some(r=> roles.includes(r)) ? slot.reserves.findIndex(r=> !r) : -1;
+                if(idx!==-1){ slot.reserves[idx] = chosenPlayer.id; placed=true; break outer2; }
+              }
+            }
+          }
+          if(placed){ renderField(); }
+          saveSandbox(sandbox);
+        } catch(_err) { /* fail silent */ }
+        renderSandboxRoster();
+      }
+      saveData(data); 
+      e.target.reset(); 
+      chosenPlayer=null; 
+      refreshClubSelect(); 
+      renderBoards(); 
+      if(sandbox) renderAppunti(); 
+      announce('Acquisto registrato'); 
+    } catch(err){ uiAlert(err.message); }
+  });
+
+  // Undo ultimo acquisto per la divisione e fase/anno correnti
+  document.getElementById('undoLastBtn').addEventListener('click', async () => {
+    const { phase, year } = data.meta.currentAuction || {};
+    // Colleziona tutte le transazioni acquisto della divisione corrente e fase/anno correnti
+    const acquisti = [];
+    data.clubs.filter(c=>c.divisionId===currentDivisionId).forEach(club => {
+      (club.transactions||[]).forEach(tx => {
+        if(tx.meta?.type==='acquisto' && tx.meta?.auction?.phase===phase && String(tx.meta?.auction?.year)===String(year)) {
+          acquisti.push({ club, tx });
+        }
+      });
+    });
+    if(!acquisti.length) { return uiAlert('Nessun acquisto da annullare per questa asta'); }
+    // Trova il più recente: non abbiamo timestamp preciso, usiamo ordine d'inserimento (ultimo nell'array globale percepito) => prendiamo quello con indice maggiore nel suo club
+    let last = null;
+    acquisti.forEach(({club, tx}) => {
+      const idx = club.transactions.indexOf(tx);
+      if(!last || idx > last.idx) last = { club, tx, idx };
+    });
+    if(!last) return uiAlert('Errore annullamento');
+    const playerId = last.tx.meta?.playerId;
+    if(!playerId) return uiAlert('Transazione senza riferimento giocatore');
+    if(!(await uiConfirm('Annullare ultimo acquisto: '+ last.tx.description + '?'))) return;
+  // Rimuove transazione
+    last.club.transactions.splice(last.idx,1);
+    // Ripristina budget pre-transazione
+    last.club.budget = last.tx.prev;
+  // Rimuove roster entry corrispondente (active acquistato durante questa fase/anno e playerId match)
+    const rosterIdx = last.club.roster.findIndex(r=> r.playerId===playerId && r.status==='active');
+    if(rosterIdx!==-1) {
+      last.club.roster.splice(rosterIdx,1);
+      recalcClubWage(last.club, data);
+    }
+    // Aggiorna altri club budgets se necessario
+    // Automatismo 2 (undo): se è il club selezionato nel sandbox, rimuovi da formazione e sandbox rosterPlans
+    if(sandbox && sandbox.officialClubId === last.club.id){
+      // Sgancia da formazione (main o riserve)
+      if(sandbox.formation && Array.isArray(sandbox.formation.positions)){
+        sandbox.formation.positions.forEach(line=> line.forEach(slot=> {
+          if(slot.main===playerId) slot.main=null;
+          slot.reserves = slot.reserves.map(r=> r===playerId?null:r);
+        }));
+      }
+      delete sandbox.rosterPlans[playerId];
+      saveSandbox(sandbox);
+      renderField();
+      renderSandboxRoster();
+    }
+    saveData(data);
+    refreshClubSelect();
+    renderBoards();
+    if(sandbox) renderAppunti();
+    announce('Ultimo acquisto annullato');
+  });
+
+  const boards = document.getElementById('auctionBoards');
+  let auctionSort = { key:'order', dir:'asc' };
+  // Ordine ruoli personalizzato per sorting coerente
+  const ROLES_SORT_ORDER = ['POR','DC','B','DD','DS','E','M','C','T','W','A','PC'];
+  const ROLE_RANK = Object.fromEntries(ROLES_SORT_ORDER.map((r,i)=>[r,i]));
+  // Mappatura nomi club -> percorso file logo (se disponibile)
+  const CLUB_LOGOS = {
+    "AC Foppolese":"media/AC Foppolese_Logo.png",
+    "AC Pigna":"media/AC Pigna_Logo.JPG",
+    "Aston Birra":"media/Aston Birra_Logo.png",
+    "Brok BC":"media/Brok BC_Logo.jpeg",
+    "Coca Juniors":"media/Coca Juniors_Logo.jpeg",
+    "Er Vate Borisov":"media/Er Vate Borisov_Logo.png",
+    "FC Leao Negro":"media/FC Leao Negro_Logo.jpg",
+  "Mamo's B League":"media/MBL_Trofeo.png",
+    "Pibo La Bamba FC":"media/Pibo La Bamba FC_Logo.jpeg",
+    "Polenta FC":"media/Polenta FC_Logo.png",
+    "Servi Della Gleba":"media/Servi Della Gleba_Logo.png",
+    "SS Braulio":"media/SS Braulio_Logo.JPG",
+    "Storm Graz":"media/Storm Graz_Logo.png"
+  };
+  function setSort(key){
+    if(auctionSort.key===key){
+      auctionSort.dir = auctionSort.dir==='asc' ? 'desc' : 'asc';
+    } else {
+      auctionSort.key = key; auctionSort.dir='asc';
+    }
+    renderBoards(); announce('Ordinamento aggiornato');
+  }
+  function applySortIndicators(root){ root.querySelectorAll('th.sortable').forEach(th=>{ th.classList.remove('asc','desc'); if(th.dataset.sort===auctionSort.key) th.classList.add(auctionSort.dir); }); }
+  function buildOrderMap(club){
+    const { phase, year } = data.meta.currentAuction;
+    const txs = (club.transactions||[]).filter(t=> t.meta?.type==='acquisto' && t.meta?.auction && t.meta.auction.phase===phase && String(t.meta.auction.year)===String(year));
+    // Usa seq persistente se presente, altrimenti fallback all'indice
+    const orderMap=new Map();
+    txs.forEach((t,i)=>{ if(t.meta?.playerId){ const seq = t.meta?.auction?.seq || (i+1); orderMap.set(t.meta.playerId, seq); } });
+    return orderMap;
+  }
+  function rosterComparator(a,b, orderMap){
+    const dir = auctionSort.dir==='asc'?1:-1;
+    switch(auctionSort.key){
+      case 'order': {
+        const oa=orderMap.get(a.r.playerId)||9999; const ob=orderMap.get(b.r.playerId)||9999;
+        if(oa!==ob) return (oa-ob)*dir;
+        return a.p.name.localeCompare(b.p.name)*dir; // fallback tie-break only
+      }
+      case 'name': // treat as chronological order as per requirement
+        const oa=orderMap.get(a.r.playerId)||9999; const ob=orderMap.get(b.r.playerId)||9999;
+        if(oa!==ob) return (oa-ob)*dir;
+        return a.p.name.localeCompare(b.p.name)*dir; // secondary tie-break
+      case 'roles': {
+        // Calcola il rank minimo tra i ruoli posseduti (multi-ruolo) secondo l'ordine richiesto
+        const rankA = Math.min(...a.p.roles.map(r=> ROLE_RANK[r] ?? 999));
+        const rankB = Math.min(...b.p.roles.map(r=> ROLE_RANK[r] ?? 999));
+        if(rankA !== rankB) return (rankA-rankB)*dir;
+        // In caso di pareggio, ordina per rappresentazione ruoli e poi nome
+        const rolesStrA = a.p.roles.map(r=>ROLES_SORT_ORDER.includes(r)?ROLE_RANK[r].toString().padStart(2,'0')+r:r).join('-');
+        const rolesStrB = b.p.roles.map(r=>ROLES_SORT_ORDER.includes(r)?ROLE_RANK[r].toString().padStart(2,'0')+r:r).join('-');
+        const cmpRoles = rolesStrA.localeCompare(rolesStrB);
+        if(cmpRoles!==0) return cmpRoles*dir;
+        return a.p.name.localeCompare(b.p.name)*dir;
+      }
+      case 'price':
+        return ((a.r.purchasePrice??Infinity)-(b.r.purchasePrice??Infinity))*dir;
+      case 'wage':
+        return (a.r.wage - b.r.wage)*dir;
+    }
+    return 0;
+  }
+  function removeAcquisition(club, playerId){ const { phase, year } = data.meta.currentAuction; if(Array.isArray(club.transactions)){ const idx = club.transactions.findIndex(t=> t.meta?.type==='acquisto' && t.meta?.auction?.phase===phase && String(t.meta.auction.year)===String(year) && t.meta?.playerId===playerId); if(idx!==-1) club.transactions.splice(idx,1); } const rIdx = club.roster.findIndex(r=> r.playerId===playerId && r.status==='active'); if(rIdx!==-1) club.roster.splice(rIdx,1); recalcClubWage(club, data); recomputeClubTransactions(club); 
+    // Automatismo 2 (rimozione manuale): aggiorna sandbox se club selezionato
+    if(sandbox && sandbox.officialClubId === club.id){
+      if(sandbox.formation && Array.isArray(sandbox.formation.positions)){
+        sandbox.formation.positions.forEach(line=> line.forEach(slot=> {
+          if(slot.main===playerId) slot.main=null;
+          slot.reserves = slot.reserves.map(r=> r===playerId?null:r);
+        }));
+      }
+      delete sandbox.rosterPlans[playerId];
+      saveSandbox(sandbox);
+      renderField();
+      renderSandboxRoster();
+    }
+    saveData(data); if(sandbox) renderAppunti(); }
+  function renderBoards(){
+    boards.innerHTML='';
+    const { phase, year } = data.meta.currentAuction;
+    data.clubs.filter(c=>c.divisionId===currentDivisionId).forEach(c=>{
+      const div=document.createElement('div');
+      div.className='club-board';
+      const [raw1,raw2] = c.colors || ['#1e293b','#334155'];
+      const c1 = raw1 || '#1e293b';
+      const c2 = raw2 || raw1 || '#334155';
+      const gradient = `linear-gradient(90deg, ${c1}, ${c2})`;
+      const rosterCount = c.roster.filter(r=>r.status==='active').length;
+      const rosterPerc = Math.min(100, Math.round(rosterCount/30*100));
+      const wagePerc = Math.min(100, Math.round((c.wageTotal||0)/110*100));
+      const budgetCls = c.budget>=300?'high':(c.budget>=120?'mid':'low');
+  const logoPath = c.logo || CLUB_LOGOS[c.name];
+  const logoHTML = logoPath ? `<img src='${logoPath}' alt='${c.name} logo' onerror="this.onerror=null; this.replaceWith('<span class=\\'logo-fallback\\'>${(c.name||'?').charAt(0)}</span>');" />` : `<span class='logo-fallback'>${(c.name||'?').charAt(0)}</span>`;
+      div.innerHTML = `<div class='board-head' style='background:${gradient};color:#fff;'>`
+        + `<div class='club-head-row'>`
+          + `<div class='club-logo-mini'>${logoHTML}</div>`
+          + `<strong class='club-name'><a href='club.html?id=${c.id}' style='color:#fff;text-decoration:none;' title='Vai al club'>${c.name.toUpperCase()}</a></strong>`
+        + `</div>`
+        + `<div class='vitals'>`
+            + `<div class='vital-pill roster'><span class='vital-label'>ROSA</span><span class='vital-value'>${rosterCount}/30</span></div>`
+            + `<div class='vital-pill wage'><span class='vital-label'>STIPENDI</span><span class='vital-value'>${c.wageTotal}/110</span></div>`
+            + `<div class='vital-pill budget'><span class='vital-label'>BUDGET</span><span class='vital-value'>${c.budget}</span></div>`
+        + `</div>`
+      + `</div>`;
+      const table=document.createElement('table');
+      table.className='data-table table-compact';
+  table.innerHTML = `<thead><tr><th class='sortable' data-sort='order' style='text-align:left;'>Giocatore</th><th class='sortable' data-sort='roles'>Ruoli</th><th class='sortable' data-sort='price'>Prezzo</th><th class='sortable' data-sort='wage'>Stip.</th><th></th></tr></thead>`;
+      const tb=document.createElement('tbody');
+      const orderMap = buildOrderMap(c);
+      const rows = c.roster.filter(r=>r.status==='active').map(r=>({ r, p:data.players.find(pl=>pl.id===r.playerId) })).filter(x=>x.p);
+      rows.sort((a,b)=> rosterComparator(a,b, orderMap));
+      rows.forEach(({r,p})=>{
+        const prezzo = (typeof r.purchasePrice==='number')? r.purchasePrice : '-';
+        const orderNum = orderMap.get(r.playerId) || '';
+        const canDelete = !!orderMap.get(r.playerId);
+        const delBtn = canDelete ? `<button class='delete-btn' data-del='${c.id}|${r.playerId}' title='Annulla'>✖</button>`:'';
+        const tr=document.createElement('tr');
+  tr.innerHTML = `<td style='text-align:left;'>${p.name}</td><td>${roleBadgesHTML(p.roles)}</td><td>${prezzo}</td><td class='wage-cell'>${wageCellHTML(r.wage)}</td><td>${delBtn}</td>`;
+        tb.appendChild(tr);
+      });
+      table.appendChild(tb);
+      table.querySelectorAll('th.sortable').forEach(th=> th.addEventListener('click',()=> setSort(th.dataset.sort)));
+      div.appendChild(table);
+      boards.appendChild(div);
+      applyWageIntensity(div);
+    });
+  }
+  boards.addEventListener('click', async e => { const del=e.target.dataset.del; if(!del) return; const [clubId, playerId] = del.split('|'); const club = data.clubs.find(c=>c.id===clubId); const player = data.players.find(p=>p.id===playerId); if(!club||!player) return; if(!(await uiConfirm(`Rimuovere acquisto di ${player.name}?`))) return; removeAcquisition(club, playerId); refreshClubSelect(); renderBoards(); if(sandbox) renderAppunti(); announce('Acquisto rimosso'); });
+  renderBoards();
+
+  /* ==== SANDBOX UPGRADED COMPONENTS ==== */
+  const MODULES = {
+    // Linee dall'alto verso il basso: ogni sotto-array = slot con ruoli accettati
+    "4-4-2":   [[['POR']],[['DD'],['DC'],['DC'],['DS']],[['E','W'],['M','C'],['C'],['E']],[['A','PC'],['A','PC']]],
+    "4-1-4-1": [[['POR']],[['DD'],['DC'],['DC'],['DS']],[['C','T']],[['E','W'],['M'],['C'],['W']],[['A','PC']]],
+    "4-4-1-1": [[['POR']],[['DD'],['DC'],['DC'],['DS']],[['E','W'],['M'],['C'],['E','W']],[['T','A']],[['A','PC']]],
+    "4-2-3-1": [[['POR']],[['DD'],['DC'],['DC'],['DS']],[['M'],['M','C']],[['W','T'],['T'],['A']],[['A','PC']]],
+    "3-5-2":   [[['POR']],[['DC'],['DC'],['DC','B']],[['E','W'],['M','C'],['M'],['C'],['E']],[['A','PC'],['A','PC']]],
+    "3-5-1-1": [[['POR']],[['DC'],['DC'],['DC','B']],[['E','W'],['M'],['C'],['M'],['E','W']],[['T','A']],[['A','PC']]],
+    "4-3-3":   [[['POR']],[['DD'],['DC'],['DC'],['DS']],[['M','C'],['M'],['C']],[['W','A'],['A','PC'],['W','A']]],
+    // Corretto: due punte finali coerenti col layout
+    "4-3-1-2": [[['POR']],[['DD'],['DC'],['DC'],['DS']],[['M','C'],['M'],['C']],[['T']],[['A','PC'],['A','PC']]],
+    "3-4-3":   [[['POR']],[['DC'],['DC'],['DC','B']],[['E'],['M','C'],['C'],['E']],[['W','A'],['A','PC'],['W','A']]],
+    // Corretto: due punte finali coerenti col layout
+    "3-4-1-2": [[['POR']],[['DC'],['DC'],['DC','B']],[['E'],['M','C'],['C'],['E']],[['T']],[['A','PC'],['A','PC']]],
+    "3-4-2-1": [[['POR']],[['DC'],['DC'],['DC','B']],[['E','W'],['M'],['M','C'],['E']],[['T'],['T','A']],[['A','PC']]]
+  };
+  /* Coordinate specifiche per ogni modulo (x,y in %) per riprodurre disposizione reale.
+     Ogni array = linea dall'alto verso il basso. Le sottostringhe devono avere stessa
+     struttura di MODULES[module]. Se un modulo manca qui, si usa il layout generico.
+     Nota: posizioni facilmente regolabili su richiesta. */
+  const MODULE_LAYOUTS = {
+    '4-4-2': [
+      // GK
+      [ {x:50,y:6} ],
+      // Difesa a 4
+      [ {x:15,y:22},{x:36,y:25},{x:64,y:25},{x:85,y:22} ],
+      // Centrocampo a 4 (esterni un po' più alti)
+      [ {x:18,y:46},{x:40,y:50},{x:60,y:50},{x:82,y:46} ],
+      // 2 punte abbastanza centrali
+      [ {x:44,y:75},{x:56,y:75} ]
+    ],
+    '4-3-3': [
+      [ {x:50,y:6} ],
+      [ {x:15,y:22},{x:36,y:25},{x:64,y:25},{x:85,y:22} ],
+      [ {x:35,y:47},{x:50,y:50},{x:65,y:47} ],
+      [ {x:20,y:72},{x:50,y:77},{x:80,y:72} ]
+    ],
+    '4-2-3-1': [
+      [ {x:50,y:6} ],
+      [ {x:15,y:22},{x:36,y:25},{x:64,y:25},{x:85,y:22} ],
+      [ {x:42,y:43},{x:58,y:43} ],
+      [ {x:25,y:58},{x:50,y:60},{x:75,y:58} ],
+      [ {x:50,y:78} ]
+    ],
+    '4-3-1-2': [
+      [ {x:50,y:6} ],
+      [ {x:15,y:22},{x:36,y:25},{x:64,y:25},{x:85,y:22} ],
+      [ {x:35,y:47},{x:50,y:50},{x:65,y:47} ],
+      [ {x:50,y:63} ],
+      [ {x:46,y:78},{x:54,y:78} ]
+    ],
+    '3-5-2': [
+      [ {x:50,y:6} ],
+      [ {x:35,y:26},{x:50,y:23},{x:65,y:26} ],
+      [ {x:12,y:48},{x:32,y:51},{x:50,y:53},{x:68,y:51},{x:88,y:48} ],
+      [ {x:44,y:76},{x:56,y:76} ]
+    ],
+    '3-5-1-1': [
+      [ {x:50,y:6} ],
+      [ {x:35,y:26},{x:50,y:23},{x:65,y:26} ],
+      [ {x:12,y:48},{x:32,y:51},{x:50,y:53},{x:68,y:51},{x:88,y:48} ],
+      [ {x:50,y:67} ],
+      [ {x:50,y:80} ]
+    ],
+    '3-4-3': [
+      [ {x:50,y:6} ],
+      [ {x:35,y:26},{x:50,y:23},{x:65,y:26} ],
+      [ {x:25,y:50},{x:50,y:53},{x:75,y:50},{x:90,y:48} ],
+      [ {x:20,y:73},{x:50,y:77},{x:80,y:73} ]
+    ],
+    '3-4-1-2': [
+      [ {x:50,y:6} ],
+      [ {x:35,y:26},{x:50,y:23},{x:65,y:26} ],
+      [ {x:25,y:50},{x:50,y:53},{x:75,y:50},{x:90,y:48} ],
+      [ {x:50,y:66} ],
+      [ {x:46,y:79},{x:54,y:79} ]
+    ],
+    '3-4-2-1': [
+      [ {x:50,y:6} ],
+      [ {x:35,y:26},{x:50,y:23},{x:65,y:26} ],
+      [ {x:25,y:50},{x:50,y:53},{x:75,y:50},{x:90,y:48} ],
+      [ {x:42,y:67},{x:58,y:67} ],
+      [ {x:50,y:81} ]
+    ],
+    '4-4-1-1': [
+      [ {x:50,y:6} ],
+      [ {x:15,y:22},{x:36,y:25},{x:64,y:25},{x:85,y:22} ],
+      [ {x:18,y:46},{x:40,y:50},{x:60,y:50},{x:82,y:46} ],
+      [ {x:50,y:66} ],
+      [ {x:50,y:80} ]
+    ],
+    '4-1-4-1': [
+      [ {x:50,y:6} ],
+      [ {x:15,y:22},{x:36,y:25},{x:64,y:25},{x:85,y:22} ],
+      [ {x:50,y:41} ],
+      [ {x:18,y:53},{x:40,y:56},{x:60,y:56},{x:82,y:53} ],
+      [ {x:50,y:79} ]
+    ]
+  };
+  function changeModule(mod){
+    const oldPositions = sandbox.formation.positions || [];
+    const oldSlotsFlat = [];
+    oldPositions.forEach(line=> line.forEach(slot=> oldSlotsFlat.push(slot)));
+    sandbox.formation.module = mod;
+    const structure = MODULES[mod];
+    const newPositions = structure.map(line=> line.map(roleOptions => ({ roleOptions, main:null, reserves:[] })));
+    const used = new Set();
+    newPositions.forEach(line=> line.forEach(ns => {
+      const idx = oldSlotsFlat.findIndex(os => !used.has(os) && os.main && os.roleOptions.some(r=> ns.roleOptions.includes(r)) );
+      if(idx!==-1){ ns.main = oldSlotsFlat[idx].main; ns.reserves = oldSlotsFlat[idx].reserves.slice(0,2); used.add(oldSlotsFlat[idx]); }
+    }));
+    sandbox.formation.positions = newPositions;
+  saveSandbox(sandbox);
+    sbModuleSelect.value = mod;
+    renderField();
+    renderSandboxRoster();
+  }
+
+  const sbUserInput = document.getElementById('sandboxUserId');
+  const sbSetBtn = document.getElementById('sandboxSetUserBtn');
+  const sbExportBtn = document.getElementById('sandboxExportBtn');
+  const sbImportBtn = document.getElementById('sandboxImportBtn');
+  const sbImportInput = document.getElementById('sandboxImportInput');
+  const sbResetBtn = document.getElementById('sandboxResetBtn');
+  const sbStatus = document.getElementById('sandboxStatus');
+  const sbContent = document.getElementById('sandboxContent');
+  const sbModuleSelect = document.getElementById('sbModuleSelect');
+  const sbField = document.getElementById('sbField');
+  const sbRosterBody = document.getElementById('sbRosterBody');
+  const sbCreateAppuntiBtn = document.getElementById('sbCreateAppuntiBtn');
+  const sbAppuntiContainer = document.getElementById('sbAppuntiContainer');
+  const sbClubSelect = document.getElementById('sbClubSelect');
+
+  Object.keys(MODULES).forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=m; sbModuleSelect.appendChild(o); });
+  // Listener selettore modulo rapido (prima mancava: cambiava solo cliccando le card)
+  sbModuleSelect.addEventListener('change', () => { if(!sandbox) return; const mod = sbModuleSelect.value; if(mod && MODULES[mod]) { changeModule(mod); announce('Modulo cambiato '+mod); } });
+
+  let sandbox = null;
+  function captureClubSnapshotIfNeeded() { if(!sandbox.clubSnapshot) { sandbox.clubSnapshot = { clubId: null, capturedAt: new Date().toISOString(), players: [] }; saveSandbox(sandbox); } }
+  function ensureFormationPositions() { const module = sandbox.formation.module; const structure = MODULES[module]; sandbox.formation.positions = structure.map((line, lineIdx) => line.map((roleOptions, posIdx) => { const existing = sandbox.formation.positions?.[lineIdx]?.[posIdx]; if(existing) return existing; return { roleOptions, main:null, reserves:[] }; })); }
+  function renderField() {
+    sbField.innerHTML='';
+    ensureFormationPositions();
+  // Coach (allenatore) box in top-left with president name
+  let coachName='—';
+  if(sandbox && sandbox.officialClubId){ const club=data.clubs.find(c=>c.id===sandbox.officialClubId); if(club && club.president) coachName=club.president; }
+  const coachBox=document.createElement('div');
+  coachBox.className='sb-coach-box';
+  coachBox.innerHTML = `<span class='label'>ALLENATORE</span><span class='name'>${coachName}</span>`;
+  sbField.appendChild(coachBox);
+    const lines = sandbox.formation.positions;
+    const layout = MODULE_LAYOUTS[sandbox.formation.module];
+  const yOffset = 6; // push all slots slightly lower to make room for coach box
+    lines.forEach((line,lineIdx)=> {
+      line.forEach((slot,slotIdx)=> {
+        // Calcolo coordinate: se layout definito e coerente lo uso, altrimenti fallback generico.
+        let x,y;
+        if(layout && layout[lineIdx] && layout[lineIdx][slotIdx]) {
+          ({x,y} = layout[lineIdx][slotIdx]);
+        } else {
+          // Fallback generico come prima (distribuzione uniforme)
+          const startY = 10, endY = 90;
+            const lineCount = lines.length;
+            const spacing = lineCount>1 ? (endY-startY)/(lineCount-1) : 0;
+            y = startY + spacing*lineIdx;
+            function lineXPositions(n){ switch(n){ case 1: return [50]; case 2: return [32,68]; case 3: return [22,50,78]; case 4: return [15,37.5,62.5,85]; case 5: return [10,30,50,70,90]; default:{ const arr=[]; const step=80/(n-1); for(let i=0;i<n;i++) arr.push(10+i*step); return arr; } } }
+            const xs = lineXPositions(line.length);
+            x = xs[slotIdx];
+        }
+  // Apply vertical shift
+  y = y + yOffset;
+  const slotWrap = document.createElement('div');
+        slotWrap.className='sb-field-slot';
+  slotWrap.style.left = x+'%';
+  slotWrap.style.top = y+'%';
+  slotWrap.dataset.line=lineIdx;
+  slotWrap.dataset.x=String(x);
+        const circlesDiv = document.createElement('div');
+        circlesDiv.className='role-badges';
+        slot.roleOptions.forEach(r => { const c=document.createElement('span'); c.className='role-badge '+roleClass(r); c.textContent=r; circlesDiv.appendChild(c); });
+        slotWrap.appendChild(circlesDiv);
+        // Click sui cerchi dei ruoli apre popup assegnazione (titolare di default)
+        circlesDiv.style.cursor='pointer';
+        circlesDiv.addEventListener('click', (e)=> openAssignPanel(e, lineIdx, slotIdx, 'main'));
+        // Aggiungi blocco nomi (titolare + riserve) sotto
+        const namesWrap = document.createElement('div');
+        namesWrap.className='slot-names';
+        const mainNameDiv = document.createElement('div');
+        mainNameDiv.className='slot-main-name';
+        if(slot.main){
+          const pl = data.players.find(p=>p.id===slot.main);
+          mainNameDiv.textContent = pl ? pl.name : '?';
+        } else {
+          mainNameDiv.textContent = '';
+          mainNameDiv.classList.add('empty');
+        }
+        mainNameDiv.addEventListener('click', e=> { e.stopPropagation(); openAssignPanel(e, lineIdx, slotIdx, 'main'); });
+        namesWrap.appendChild(mainNameDiv);
+        const resNamesDiv = document.createElement('div');
+        resNamesDiv.className='slot-reserve-names';
+        for(let i=0;i<2;i++){
+          const pid = slot.reserves[i]||null;
+            const span = document.createElement('span');
+            span.className='slot-res-name'+(pid?'':' empty');
+            if(pid){
+              const pl = data.players.find(p=>p.id===pid);
+              span.textContent = pl ? pl.name.split(' ')[0] : '?';
+            } else {
+              span.textContent='';
+            }
+            span.addEventListener('click', e=> { e.stopPropagation(); openAssignPanel(e, lineIdx, slotIdx, 'res'+i); });
+            resNamesDiv.appendChild(span);
+        }
+        namesWrap.appendChild(resNamesDiv);
+        slotWrap.appendChild(namesWrap);
+        sbField.appendChild(slotWrap);
+      });
+    });
+    // --- Anti-sovrapposizione orizzontale: applica spaziatura minima tra slot nella stessa linea ---
+    adjustHorizontalSpacing();
+  }
+  function adjustHorizontalSpacing(){
+    const marginLeft=8, marginRight=92;      // Area utile su asse X (percentuali campo)
+    const slotWidth=6;                       // Larghezza stimata pedina (cerchio + label) in % per evitare collisione
+    const minGapBase=2;                      // Gap aggiuntivo oltre alla larghezza
+    const byLine = new Map();
+    sbField.querySelectorAll('.sb-field-slot').forEach(el=> { const l=el.dataset.line; if(!byLine.has(l)) byLine.set(l,[]); byLine.get(l).push(el); });
+    byLine.forEach(list => {
+      if(list.length<=1){ list[0].style.left = '50%'; return; }
+      // Criterio aggiuntivo: se la linea ha esattamente 2 pedine, portale più centrali (meno distanti dai bordi)
+      if(list.length===2){
+        // distanza desiderata tra i centri (in % campo) mantenendo un margine visivo e evitando collisioni
+        const slotWidth=6; // coerente con definizione sopra
+        const minGapBetweenCenters = slotWidth + 4; // garantisce spazio
+        const desiredGap = 24; // via di mezzo tra ~36 (prima) e 16 (troppo vicino)
+        const gap = Math.max(minGapBetweenCenters, desiredGap);
+        const center = 50;
+        const leftX = center - gap/2;
+        const rightX = center + gap/2;
+        // Mantieni ordine sinistra/destra sulla base dell'x originale
+        list.sort((a,b)=> parseFloat(a.dataset.x)-parseFloat(b.dataset.x));
+        list[0].dataset.x = String(leftX);
+        list[1].dataset.x = String(rightX);
+        list.forEach(el=> { el.style.left = el.dataset.x+'%'; });
+        return; }
+      // Ordine per X pianificata (mantiene la logica del layout)
+      list.sort((a,b)=> parseFloat(a.dataset.x)-parseFloat(b.dataset.x));
+      const n=list.length;
+      // Spazi teorici disponibili
+      const usableWidth = marginRight - marginLeft;
+      // Gap minimo dinamico: aumenta se ci sono tante pedine
+      const minGap = Math.max(minGapBase, (usableWidth - n*slotWidth)/(n-1));
+      // Prima assegnazione: mantieni ranking ma distribuisci
+      for(let i=0;i<n;i++){
+        const target = marginLeft + i*minGap + slotWidth/2 + i*slotWidth; // posizione centro
+        list[i].dataset.x = String(target);
+      }
+      // Se ultimo oltre marginRight, scala tutto
+      const lastX = parseFloat(list[n-1].dataset.x);
+      const overflow = lastX + slotWidth/2 - marginRight;
+      if(overflow>0){
+        // comprimi linearmente verso sinistra
+        const firstX = parseFloat(list[0].dataset.x);
+        const span = lastX - firstX;
+        list.forEach(el => {
+          const x = parseFloat(el.dataset.x);
+          const ratio = span? (x-firstX)/span : 0;
+          const newX = x - overflow*ratio - overflow*0.1; // leggera correzione
+          el.dataset.x = String(newX);
+        });
+      }
+      // Ultimo passaggio: garantisci separazione
+      for(let i=1;i<n;i++){
+        const prev = list[i-1]; const cur = list[i];
+        let px = parseFloat(prev.dataset.x); let cx = parseFloat(cur.dataset.x);
+        const need = slotWidth + minGapBase; // distanza minima finale
+        if(cx - px < need){ cx = px + need; cur.dataset.x = String(cx); }
+      }
+      // Centra il gruppo se avanza spazio
+      const first = parseFloat(list[0].dataset.x) - slotWidth/2;
+      const last = parseFloat(list[n-1].dataset.x) + slotWidth/2;
+      const extra = (marginRight - marginLeft) - (last - first);
+      if(extra>2){
+        const shift = extra/2;
+        list.forEach(el=> { el.dataset.x = String(parseFloat(el.dataset.x)+shift); });
+      }
+      // Limiti finali
+      list.forEach(el=> {
+        let x = parseFloat(el.dataset.x);
+        if(x < marginLeft + slotWidth/2) x = marginLeft + slotWidth/2;
+        if(x > marginRight - slotWidth/2) x = marginRight - slotWidth/2;
+        el.style.left = x+'%';
+      });
+    });
+  }
+  function getAssignPanel(){
+    let panel = document.getElementById('sbAssignPanel');
+    if(!panel){
+      panel = document.createElement('div');
+      panel.id='sbAssignPanel';
+      panel.className='sb-assign-panel';
+      panel.style.display='none';
+      panel.innerHTML = `<h4 id='sapTitle'>Assegna</h4>`+
+        `<div id='sapSlotOverview' class='sap-slot-overview'></div>`+
+        `<input id='sapSearch' placeholder='Cerca giocatore'>`+
+        `<div id='sapSuggestions' class='sap-suggestions'></div>`+
+        `<div class='sap-actions'><button id='sapCloseBtn' type='button'>Chiudi</button></div>`;
+      sbField.appendChild(panel);
+      panel.querySelector('#sapCloseBtn').addEventListener('click', ()=> closeAssignPanel());
+      panel.querySelector('#sapSearch').addEventListener('input', ()=> renderAssignSuggestions());
+    }
+    return panel;
+  }
+  let currentAssignCtx = null;
+  function openAssignPanel(evt,lineIdx,slotIdx,target='main'){
+    if(!sandbox) return;
+    currentAssignCtx = { lineIdx, slotIdx, target };
+    const slot = sandbox.formation.positions[lineIdx][slotIdx];
+    const panel = getAssignPanel();
+    panel.querySelector('#sapTitle').textContent = 'Slot '+slot.roleOptions.join('/');
+    const search = panel.querySelector('#sapSearch');
+    search.value='';
+    renderAssignSlotOverview();
+    renderAssignSuggestions();
+    panel.style.display='block';
+    const fieldRect = sbField.getBoundingClientRect();
+    const clickX = evt.clientX - fieldRect.left;
+    const clickY = evt.clientY - fieldRect.top;
+    const maxLeft = sbField.clientWidth - panel.offsetWidth - 8;
+    const maxTop = sbField.clientHeight - panel.offsetHeight - 8;
+    panel.style.left = Math.min(clickX, maxLeft) + 'px';
+    panel.style.top = Math.min(clickY, maxTop) + 'px';
+    search.focus();
+    document.addEventListener('click', outsideAssignClick, { capture:true });
+  }
+  function closeAssignPanel(){ const panel = document.getElementById('sbAssignPanel'); if(panel){ panel.style.display='none'; } currentAssignCtx=null; document.removeEventListener('click', outsideAssignClick, { capture:true }); }
+  function outsideAssignClick(e){ const panel = document.getElementById('sbAssignPanel'); if(!panel||panel.style.display==='none') return; if(panel.contains(e.target)) return; if(e.target.closest('.sb-field-slot')) return; closeAssignPanel(); }
+  function renderAssignSlotOverview(){
+    if(!currentAssignCtx) return;
+    const panel = getAssignPanel();
+    const cont = panel.querySelector('#sapSlotOverview');
+    if(!cont) return;
+    const { lineIdx, slotIdx } = currentAssignCtx;
+    const slot = sandbox.formation.positions[lineIdx][slotIdx];
+    while(slot.reserves.length<2) slot.reserves.push(null);
+    const buildRow = (label, pid, target) => {
+      const pl = pid ? data.players.find(p=>p.id===pid) : null;
+      const name = pl ? pl.name : '—';
+      const filledCls = pl ? 'filled' : 'empty';
+      return `<div class='sap-slot-row ${filledCls}' data-target='${target}'>`+
+        `<span class='sap-slot-label'>${label}</span>`+
+        `<span class='sap-slot-name'>${name}</span>`+
+        `<button type='button' class='sap-slot-remove' data-rem='${target}' ${pl?'':'disabled'} aria-label='Rimuovi'>×</button>`+
+        `</div>`;
+    };
+    cont.innerHTML = buildRow('Titolare', slot.main, 'main')+
+      buildRow('Riserva 1', slot.reserves[0], 'res0')+
+      buildRow('Riserva 2', slot.reserves[1], 'res1');
+    // Nessuna selezione manuale: ordine riempimento automatico
+  }
+  function renderAssignSuggestions(){
+    const panel = getAssignPanel(); if(!currentAssignCtx) return;
+    const sugDiv = panel.querySelector('#sapSuggestions');
+    const search = panel.querySelector('#sapSearch');
+    const term = search.value.toLowerCase();
+    const slot = sandbox.formation.positions[currentAssignCtx.lineIdx][currentAssignCtx.slotIdx];
+  // Mostra tutti i giocatori del ruolo (scroll nel contenitore) senza limitare a 60
+  const allowed = data.players.filter(p => p.roles.some(r=> slot.roleOptions.includes(r)) && (!term || p.name.toLowerCase().includes(term)) );
+    sugDiv.innerHTML='';
+    allowed.forEach(p => {
+      const row = document.createElement('div');
+      row.className='suggestion-item';
+      const inDivision = playerAssignedInDivision(p.id, currentDivisionId);
+      const origOther = playerOriginalInOtherDivision(p.id, currentDivisionId);
+      const isInSelectedClub = sandbox?.officialClubId ? data.clubs.find(c=>c.id===sandbox.officialClubId)?.roster.some(r=> r.playerId===p.id && r.status==='active') : false;
+  if(origOther) row.classList.add('orig-other');
+      if(isInSelectedClub) {
+        row.classList.add('in-rosa');
+      } else if(inDivision) {
+        row.classList.add('other-club');
+      }
+      // Caption per origine altra competizione
+      let origCaption = '';
+      if(origOther){
+        const currentDiv = divisions.find(d=> d.id===currentDivisionId);
+        const otherDiv = divisions.find(d=> d.id!==currentDivisionId);
+        if(currentDiv && otherDiv){
+          // Se sto facendo asta nella A (BBSL) mostro ORIG. MBL e viceversa
+          if(currentDiv.name.includes('Bar Birsa')) origCaption = 'ORIG. MBL';
+          else if(currentDiv.name.includes("Mamo")) origCaption = 'ORIG. BBSL';
+        }
+      }
+      const nameHTML = isInSelectedClub
+        ? `${p.name}<span class='si-caption'>IN ROSA</span>`
+        : (inDivision ? `${p.name}<span class='si-caption'>ALTRO CLUB</span>` : p.name) + (origCaption?`<span class='si-caption'>${origCaption}</span>`:'');
+      // Costruisci 3 slot ruolo fissi
+      const sorted = sortRoles(p.roles).slice(0,3);
+      const slotsHTML = [0,1,2].map(i => {
+        const r = sorted[i];
+        if(!r) return `<span class='role-slot empty'></span>`;
+        return `<span class='role-slot'><span class="role-badge ${roleClass(r)}" style="width:16px;height:16px;font-size:7px;">${r}</span></span>`;
+      }).join('');
+      row.innerHTML = `<span class='si-name'>${nameHTML}</span><span class='si-quote'>${p.quote}</span><span class='si-roles roles-3fix'>${slotsHTML}</span>`;
+      row.addEventListener('click', ()=> { applyAssignment(p.id, null, { keepOpen:true, auto:true }); announce('Assegnato '+p.name); });
+      sugDiv.appendChild(row);
+    });
+  }
+  function applyAssignment(playerId, targetOverride, opts={}){
+    if(!currentAssignCtx || !sandbox) return;
+    const { lineIdx, slotIdx } = currentAssignCtx;
+    const slot = sandbox.formation.positions[lineIdx][slotIdx];
+    if(!Array.isArray(slot.reserves)) slot.reserves=[];
+    while(slot.reserves.length<2) slot.reserves.push(null);
+    let target = targetOverride;
+    if(opts.auto){
+      // determinazione automatica: main -> res0 -> res1 -> sostituisce res1 se pieno
+      if(playerId!==null){
+        if(slot.main===playerId || slot.reserves.includes(playerId)) target='noop';
+        else if(!slot.main) target='main';
+        else if(!slot.reserves[0]) target='res0';
+        else if(!slot.reserves[1]) target='res1';
+        else target='res1'; // sovrascrive seconda riserva se tutte piene
+      }
+    }
+    if(playerId===null){
+      // rimozione esplicita
+      if(target==='main') slot.main=null;
+      else if(target && target.startsWith('res')) { const i=Number(target.slice(3)); slot.reserves[i]=null; }
+    } else if(target!=='noop') {
+      // Rimuovi duplicati altrove
+      sandbox.formation.positions.forEach((line,lI)=> line.forEach((s,sI)=> {
+        if(lI===lineIdx && sI===slotIdx) return;
+        if(s.main===playerId) s.main=null;
+        if(Array.isArray(s.reserves)) s.reserves = s.reserves.map(r=> r===playerId? null : r);
+      }));
+      if(target==='main') slot.main=playerId;
+      else if(target && target.startsWith('res')) { const i=Number(target.slice(3)); slot.reserves[i]=playerId; }
+    }
+    saveSandbox(sandbox);
+    renderField();
+    renderSandboxRoster();
+    if(opts.keepOpen){
+      renderAssignSlotOverview();
+      renderAssignSuggestions();
+    } else {
+      closeAssignPanel();
+    }
+  }
+  // Gestione interazioni slot overview
+  document.addEventListener('click', e => {
+    const remBtn = e.target.closest('.sap-slot-remove');
+    if(remBtn && currentAssignCtx){
+      const target = remBtn.dataset.rem;
+      applyAssignment(null, target, { keepOpen:true });
+      announce('Slot liberato');
+    }
+  });
+
+  function gatherFormationPlayers(){ if(!sandbox) return []; const ids = new Set(); (sandbox.formation.positions||[]).forEach(line => line.forEach(slot => { if(slot.main) ids.add(slot.main); (slot.reserves||[]).filter(Boolean).forEach(pid=> ids.add(pid)); })); return Array.from(ids); }
+  function calcAnnualWageFromQuote(q) { return Math.round(q*0.25*1000)/1000; }
+  function renderSandboxRoster() { if(!sandbox) return; const summaryEl = document.getElementById('sbRosterSummary'); const formationIds = new Set(gatherFormationPlayers()); const officialIds = new Set(); let officialClubReleasedHalf = 0; if(sandbox.officialClubId) { const offClub = data.clubs.find(c=>c.id===sandbox.officialClubId); if(offClub) { offClub.roster.filter(r=>r.status==='active').forEach(r=> officialIds.add(r.playerId)); officialClubReleasedHalf = offClub.roster.filter(r=>r.status==='released').reduce((sum,r)=> sum + Math.round(r.wage*0.5*1000)/1000, 0); } } const planIds = new Set(Object.keys(sandbox.rosterPlans||{})); const allIds = new Set([...formationIds, ...officialIds, ...planIds]); let seeded=false; allIds.forEach(pid => { if(!sandbox.rosterPlans[pid]) { const pl = data.players.find(p=>p.id===pid); if(!pl) return; sandbox.rosterPlans[pid] = { years:1, wage: Math.round(pl.quote*0.25*1000)/1000 }; seeded=true; } }); if(seeded) saveSandbox(sandbox); const rowsData = Array.from(allIds).map(pid => { const pl = data.players.find(p=>p.id===pid); let officialEntry=null; if(sandbox.officialClubId) { const offClub = data.clubs.find(c=>c.id===sandbox.officialClubId); officialEntry = offClub?.roster.find(r=>r.playerId===pid && r.status==='active')||null; } const plan = sandbox.rosterPlans[pid]; if(plan && (!plan.wage || plan._yearsCached !== plan.years)) { const percMap={1:0.25,2:0.50,3:0.75,4:1.0}; plan.wage = Math.round(pl.quote * (percMap[plan.years]||0.25) * 1000)/1000; plan._yearsCached = plan.years; } const calcWage = officialEntry ? officialEntry.wage : (plan?.wage ?? Math.round(pl.quote*0.25*1000)/1000); return { pid, pl, officialEntry, plan, inFormation: formationIds.has(pid), wage: calcWage }; }).filter(r=>r.pl);
+    // Sorting sandbox roster according to sbSort (maintain inFormation group precedence while sorting inside groups)
+    rowsData.sort((a,b)=> {
+      const groupByFormation = (sbSort.key==='name');
+      if(groupByFormation && a.inFormation!==b.inFormation) return b.inFormation - a.inFormation; // titolari solo sopra in ordinamento per nome
+      const dir = sbSort.dir==='asc'?1:-1;
+      if(sbSort.key==='name'){ const cmp = a.pl.name.localeCompare(b.pl.name); if(cmp) return cmp*dir; }
+      else if(sbSort.key==='roles'){ const rankA = Math.min(...a.pl.roles.map(r=> ROLE_RANK[r]??999)); const rankB = Math.min(...b.pl.roles.map(r=> ROLE_RANK[r]??999)); if(rankA!==rankB) return (rankA-rankB)*dir; const rolesStrA = a.pl.roles.map(r=> (ROLE_RANK[r]??999).toString().padStart(2,'0')+r).sort().join('-'); const rolesStrB = b.pl.roles.map(r=> (ROLE_RANK[r]??999).toString().padStart(2,'0')+r).sort().join('-'); const cmpR = rolesStrA.localeCompare(rolesStrB); if(cmpR) return cmpR*dir; }
+      else if(sbSort.key==='wage'){ if(a.wage!==b.wage) return (a.wage - b.wage)*dir; }
+      return a.pl.name.localeCompare(b.pl.name); // fallback stabile
+    });
+    sbRosterBody.innerHTML='';
+    let totalWage=0; let playerCount=0; const roleCirclesHTML = roles => `<span class='role-badges'>${sortRoles(roles).map(r=>`<span class=\"role-badge ${roleClass(r)}\">${r}</span>`).join('')}</span>`;
+    rowsData.forEach(r => { playerCount++; totalWage += r.wage; const tr = document.createElement('tr'); if(r.inFormation) tr.style.background='#f0fdf4'; const nameCell = r.inFormation ? `⭐ ${r.pl.name}` : r.pl.name; tr.innerHTML = `<td style='padding:4px;'>${nameCell}</td>`
+      + `<td style='padding:4px;'>${roleCirclesHTML(r.pl.roles)}</td>`
+      + `<td style='padding:4px; text-align:right;' class='wage-cell'>${wageCellHTML(r.wage)}</td>`
+      + `<td style='padding:4px; text-align:center;'><input type='number' min='1' max='4' data-sb-years='${r.pid}' value='${r.plan.years}' style='width:42px;'></td>`
+      + `<td style='padding:4px; text-align:center;'><button class='delete-btn' data-sb-removeall='${r.pid}' title='Rimuovi dalla simulazione' style='font-size:10px;'>✖</button></td>`;
+      sbRosterBody.appendChild(tr); });
+    totalWage += officialClubReleasedHalf; totalWage = Math.round(totalWage*1000)/1000;
+    // Imposta gradient metriche con colori club selezionato
+    let m1='#1e3a8a', m2='#2563eb';
+    if(sandbox.officialClubId){
+      const clubCol = data.clubs.find(c=>c.id===sandbox.officialClubId)?.colors;
+      if(Array.isArray(clubCol) && clubCol.length){
+        m1 = clubCol[0] || m1;
+        m2 = clubCol[1] || clubCol[0] || m2;
+      }
+    }
+    summaryEl.style.setProperty('--metric-c1', m1);
+    summaryEl.style.setProperty('--metric-c2', m2);
+    const overPlayers = playerCount>30;
+    const wageCap = divisions.find(d=> d.id===currentDivisionId)?.wageCap || 110;
+    const overWage = totalWage>wageCap;
+    summaryEl.innerHTML = `<div class="sb-roster-metrics">`
+      + `<div class='sb-roster-metric ${overPlayers?'over':''}'><span class='label'>Giocatori simulazione</span><span class='value'>${playerCount}/30</span></div>`
+      + `<div class='sb-roster-metric ${overWage?'over':''}'><span class='label'>Stipendi simulazione</span><span class='value'>${totalWage}/${wageCap}</span></div>`
+      + `</div>`;
+    applyWageIntensity(sbRosterBody); }
+
+  // Stato ordinamento sandbox roster
+  let sbSort = { key:'name', dir:'asc' };
+  function setSbSort(key){ if(sbSort.key===key){ sbSort.dir = sbSort.dir==='asc'?'desc':'asc'; } else { sbSort.key=key; sbSort.dir='asc'; } renderSandboxRoster(); updateSbSortIndicators(); announce('Ordine simulazione aggiornato'); }
+  function updateSbSortIndicators(){ const thead = document.querySelector('#sbRosterBody')?.closest('table')?.querySelector('thead'); if(!thead) return; thead.querySelectorAll('th.sortable').forEach(th=>{ th.classList.remove('asc','desc'); if(th.dataset.sbSort===sbSort.key) th.classList.add(sbSort.dir); }); }
+  // Attach listeners once DOM header available (after initial load)
+  document.addEventListener('click', e=>{ const th = e.target.closest('th.sortable[data-sb-sort]'); if(!th) return; setSbSort(th.dataset.sbSort); });
+
+  sbRosterBody.addEventListener('input', e => { const pid = e.target.dataset.sbYears; if(!pid||!sandbox) return; let years = Number(e.target.value)||1; if(years<1) years=1; if(years>4) years=4; e.target.value=years; const pl = data.players.find(p=>p.id===pid); if(!pl) return; sandbox.rosterPlans[pid] = sandbox.rosterPlans[pid] || { years:1, wage:0 }; sandbox.rosterPlans[pid].years = years; const perc = {1:0.25,2:0.50,3:0.75,4:1.0}[years]; sandbox.rosterPlans[pid].wage = Math.round(pl.quote * perc * 1000)/1000; saveSandbox(sandbox); renderSandboxRoster(); announce('Durata aggiornata'); });
+  sbRosterBody.addEventListener('click', e => { const remForm = e.target.dataset.sbRemform; const remAll = e.target.dataset.sbRemoveall; if(!sandbox) return; if(remForm) { sandbox.formation.positions.forEach(line=> line.forEach(slot => { if(slot.main===remForm) slot.main=null; slot.reserves = slot.reserves.map(r=> r===remForm?null:r); })); saveSandbox(sandbox); renderField(); renderSandboxRoster(); announce('Rimosso dalla formazione'); return; } if(remAll) { sandbox.formation.positions.forEach(line=> line.forEach(slot => { if(slot.main===remAll) slot.main=null; slot.reserves = slot.reserves.map(r=> r===remAll?null:r); })); delete sandbox.rosterPlans[remAll]; saveSandbox(sandbox); renderField(); renderSandboxRoster(); announce('Giocatore rimosso'); return; } });
+
+  function renderAppunti() { sbAppuntiContainer.innerHTML=''; sandbox.appuntiSets.forEach(set => { const wrap = document.createElement('div'); wrap.style.border='1px solid #d1d5db'; wrap.style.borderRadius='8px'; wrap.style.padding='10px'; wrap.style.background='#fff'; const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center'; header.innerHTML = `<strong>${set.name}</strong><button data-sb-delset='${set.id}' class='btn-sm' style='font-size:11px;'>Elimina</button>`; wrap.appendChild(header); const colsMeta = [ ['top','Top player'], ['seconda','Seconda fascia'], ['terza','Terza fascia'], ['titolari','Titolari'], ['scommesse','Scommesse/Giovani'] ]; const colsRow = document.createElement('div'); colsRow.style.display='flex'; colsRow.style.gap='10px'; colsRow.style.flexWrap='wrap'; colsMeta.forEach(([key,label]) => { const colDiv = document.createElement('div'); colDiv.style.flex='1 1 180px'; colDiv.style.minWidth='160px'; colDiv.style.background='#f8fafc'; colDiv.style.padding='6px'; colDiv.style.borderRadius='6px'; colDiv.innerHTML = `<div style='font-weight:600; font-size:12px; margin-bottom:4px;'>${label}</div>`; const searchWrap = document.createElement('div'); searchWrap.style.position='relative'; searchWrap.style.marginBottom='4px'; const inp = document.createElement('input'); inp.placeholder='Aggiungi'; inp.style.width='100%'; inp.style.fontSize='11px'; inp.dataset.col=key; inp.dataset.set=set.id; const sug = document.createElement('div'); sug.className='suggestions'; sug.style.top='24px'; sug.style.maxHeight='180px'; sug.style.overflowY='auto'; searchWrap.appendChild(inp); searchWrap.appendChild(sug); colDiv.appendChild(searchWrap); const list = document.createElement('div'); list.dataset.list = key; list.dataset.set=set.id; list.style.display='flex'; list.style.flexDirection='column'; list.style.gap='4px'; (set.columns[key]||[]).forEach(pid => { list.appendChild(renderAppuntiPlayerBadge(pid, set.id, key)); }); colDiv.appendChild(list); colsRow.appendChild(colDiv); inp.addEventListener('input', ()=> refreshAppuntiSuggestions(inp, sug, set.id, key)); document.addEventListener('click', ev => { if(!sug.contains(ev.target) && ev.target!==inp) sug.innerHTML=''; }); }); wrap.appendChild(colsRow); sbAppuntiContainer.appendChild(wrap); }); }
+  function renderAppuntiPlayerBadge(playerId, setId, colKey) {
+    const badge = document.createElement('div');
+    badge.style.padding='2px 4px';
+    badge.style.fontSize='11px';
+    badge.style.borderRadius='4px';
+    badge.style.background='#fff';
+    badge.style.border='1px solid #cbd5e1';
+    badge.style.display='flex';
+    badge.style.alignItems='center';
+    badge.style.gap='6px';
+    const player = data.players.find(p=>p.id===playerId);
+    if(player){
+      const rolesHTML = roleBadgesHTML(player.roles);
+      badge.innerHTML = `<span style='font-weight:600;'>${player.name}</span>`
+        + `<span style='font-size:10px; opacity:.8;'>${player.quote}</span>`
+        + `<span class='ap-roles-line'>${rolesHTML}</span>`;
+      // shrink role badges
+      badge.querySelectorAll('.role-badge').forEach(rb=>{ rb.style.width='16px'; rb.style.height='16px'; rb.style.fontSize='8px'; rb.style.margin='0 2px 0 0'; });
+    } else {
+      badge.textContent='(?)';
+    }
+    const statusColor = computePlayerStatusColor(playerId);
+    if(statusColor) badge.style.background=statusColor;
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent='✖';
+    removeBtn.className='delete-btn';
+    removeBtn.style.fontSize='10px';
+    removeBtn.style.marginLeft='auto';
+    removeBtn.dataset.sbpRemove=`${setId}|${colKey}|${playerId}`;
+    badge.appendChild(removeBtn);
+    return badge;
+  }
+  function computePlayerStatusColor(playerId) { if(!sandbox || !sandbox.officialClubId) return ''; const myClub = data.clubs.find(c=>c.id===sandbox.officialClubId); if(!myClub) return ''; const myDivisionId = myClub.divisionId; if(myClub.roster.some(r=> r.playerId===playerId && r.status==='active')) return '#86efac'; const otherSameDiv = data.clubs.find(c=> c.id!==myClub.id && c.divisionId===myDivisionId && c.roster.some(r=> r.playerId===playerId && r.status==='active')); if(otherSameDiv) return '#fecaca'; const originalOtherDiv = data.clubs.some(c=> c.divisionId!==myDivisionId && c.roster.some(r=> r.playerId===playerId && r.status==='active' && r.original)); if(originalOtherDiv) return '#fde68a'; return ''; }
+  function refreshAppuntiSuggestions(inputEl, sugEl, setId, colKey) {
+    const term = inputEl.value.toLowerCase();
+    sugEl.innerHTML='';
+    if(!term) return;
+    const list = data.players.filter(p=> p.name.toLowerCase().includes(term)).slice(0,20);
+    list.forEach(p => {
+      const div = document.createElement('div');
+      div.className='suggestion-item';
+      const origOther = playerOriginalInOtherDivision(p.id, currentDivisionId);
+      if(origOther) div.classList.add('orig-other');
+      const sorted = sortRoles(p.roles).slice(0,3);
+      const slotsHTML = [0,1,2].map(i=> {
+        const r = sorted[i];
+        if(!r) return `<span class='role-slot empty'></span>`;
+        return `<span class='role-slot'><span class="role-badge ${roleClass(r)}" style="width:18px;height:18px;font-size:8px;">${r}</span></span>`;
+      }).join('');
+      div.innerHTML = `<span class='si-name'>${p.name}</span><span class='si-quote'>${p.quote}</span><span class='si-roles roles-3fix roles-small'>${slotsHTML}</span>`;
+      div.addEventListener('click', ()=> {
+        const set = sandbox.appuntiSets.find(s=>s.id===setId);
+        if(!set) return;
+        set.columns[colKey] = set.columns[colKey]||[];
+        if(!set.columns[colKey].includes(p.id)) set.columns[colKey].push(p.id);
+        saveSandbox(sandbox);
+        renderAppunti();
+        announce('Aggiunto '+p.name+' a '+colKey);
+      });
+      sugEl.appendChild(div);
+    });
+  }
+  sbAppuntiContainer.addEventListener('click', async e => { const rm = e.target.dataset.sbpRemove; if(rm) { const [setId,colKey,pid] = rm.split('|'); const set = sandbox.appuntiSets.find(s=>s.id===setId); if(set){ set.columns[colKey] = (set.columns[colKey]||[]).filter(id=>id!==pid); saveSandbox(sandbox); renderAppunti(); announce('Rimosso da appunti'); } } const delSet = e.target.dataset.sbDelset; if(delSet){ if(await uiConfirm('Eliminare appunti?')) { sandbox.appuntiSets = sandbox.appuntiSets.filter(s=>s.id!==delSet); saveSandbox(sandbox); renderAppunti(); announce('Set appunti eliminato'); } } });
+  sbCreateAppuntiBtn.addEventListener('click', async () => { if(!sandbox) return; const name = await uiPrompt('Nome appunti',{ title:'Nuovo set appunti', placeholder:'es. Target difesa'}); if(!name) return; sandbox.appuntiSets.push({ id:'app_'+Math.random().toString(36).slice(2,9), name, columns:{ top:[], seconda:[], terza:[], titolari:[], scommesse:[] } }); saveSandbox(sandbox); renderAppunti(); announce('Set appunti creato'); });
+
+  function updateSandboxHeader(){
+    const header=document.getElementById('sandboxHeader'); if(!header) return;
+    let c1='#1e3a8a', c2='#2563eb', clubName='Seleziona un club', logoHTML='', statsHTML='';
+    if(sandbox && sandbox.officialClubId){
+      const club = data.clubs.find(c=>c.id===sandbox.officialClubId);
+      if(club){
+        clubName=club.name;
+        if(Array.isArray(club.colors) && club.colors.length){ c1=club.colors[0]||c1; c2=club.colors[1]||club.colors[0]||c2; }
+  const logoPath = club.logo || CLUB_LOGOS[club.name];
+        if(logoPath){ logoHTML = `<img src='${logoPath}' alt='${club.name} logo'>`; } else { logoHTML = `<span class='logo-fallback'>${(club.name||'?').charAt(0)}</span>`; }
+        const active = club.roster.filter(r=>r.status==='active');
+        statsHTML = `<div class='sh-stat'><span class='label'>Rosa</span><span class='value'>${active.length}/30</span></div>`+
+                    `<div class='sh-stat'><span class='label'>Stipendi</span><span class='value'>${club.wageTotal}/110</span></div>`+
+                    `<div class='sh-stat'><span class='label'>Budget</span><span class='value'>${club.budget}</span></div>`;
+      }
+    }
+    header.style.background = `linear-gradient(105deg, ${c1}, ${c2})`;
+    const logoEl = header.querySelector('.sh-logo'); if(logoEl) logoEl.innerHTML = logoHTML;
+    const nameEl = header.querySelector('#shClubName'); if(nameEl) nameEl.textContent = clubName;
+    const statsEl = header.querySelector('#shStats'); if(statsEl) statsEl.innerHTML = statsHTML;
+  }
+  function refreshSandboxUI() { if(!sandbox) { sbContent.style.display='none'; sbExportBtn.disabled=true; sbImportBtn.disabled=true; sbResetBtn.disabled=true; updateSandboxHeader(); return; } sbContent.style.display='block'; sbExportBtn.disabled=false; sbImportBtn.disabled=false; sbResetBtn.disabled=false; sbModuleSelect.value = sandbox.formation?.module||'4-4-2'; ensureFormationPositions(); renderField(); renderSandboxRoster(); renderAppunti(); sbStatus.textContent = `Ultimo salvataggio: ${new Date(sandbox.updatedAt||sandbox.createdAt).toLocaleTimeString()}`; populateClubSelectForSandbox(); updateSandboxHeader(); }
+  function ensureSandbox(){ const uid = sbUserInput.value.trim(); if(!uid){ return uiAlert('Inserisci un identificativo'); } setCurrentSandboxUserId(uid); sandbox = loadSandbox(uid); if(!sandbox.formation || !sandbox.formation.module) { sandbox.formation = sandbox.formation || { module:'4-4-2', positions:[] }; sandbox.formation.module = sandbox.formation.module || '4-4-2'; } if(!sandbox.officialClubId) sandbox.officialClubId=null; saveSandbox(sandbox); refreshSandboxUI(); announce('Sandbox pronta'); }
+  const storedUid = getCurrentSandboxUserId(); if(storedUid){ sbUserInput.value=storedUid; sandbox = loadSandbox(storedUid); if(sandbox){ if(!sandbox.formation) sandbox.formation={ module:'4-4-2', positions:[] }; if(!sandbox.formation.module) sandbox.formation.module='4-4-2'; saveSandbox(sandbox); refreshSandboxUI(); refreshOfficialClubInfo(); } }
+  sbSetBtn.addEventListener('click', ensureSandbox);
+  sbExportBtn.addEventListener('click', ()=> { if(sandbox) { exportSandbox(sandbox); announce('Sandbox esportata'); } });
+  sbImportBtn.addEventListener('click', ()=> { if(!sandbox) return; sbImportInput.click(); });
+  sbImportInput.addEventListener('change', e=> { const f=e.target.files[0]; if(!f||!sandbox) return; importSandbox(f, sandbox.userId).then(sb=>{ sandbox=sb; refreshSandboxUI(); announce('Sandbox importata'); }).catch(err=> uiAlert('Import fallito: '+err.message)); });
+  sbResetBtn.addEventListener('click', async ()=> { if(!sandbox) return; if(!(await uiConfirm('Reset sandbox?'))) return; sandbox = resetSandbox(sandbox.userId); refreshSandboxUI(); announce('Sandbox resettata'); });
+  function populateClubSelectForSandbox(){ if(!sbClubSelect) return; const current = sandbox?.officialClubId || ''; sbClubSelect.innerHTML = '<option value="">--</option>' + data.clubs.map(c=>`<option value="${c.id}" ${c.id===current?'selected':''}>${c.name}</option>`).join(''); }
+  function refreshOfficialClubInfo(){ /* deprecated: stats now in header */ }
+  sbClubSelect?.addEventListener('change', () => { if(!sandbox) return; sandbox.officialClubId = sbClubSelect.value||null; saveSandbox(sandbox); updateSandboxHeader(); renderAppunti(); renderSandboxRoster(); renderField(); announce('Club ufficiale aggiornato'); });
+})();
+</script>
+</body>
+</html>

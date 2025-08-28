@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Competizione - Bar Birsa Super League Official App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<style>
+/* Trimmed: keep only specifics not in global */
+.participants-table th, .participants-table td { padding:8px 10px; border-bottom:1px solid var(--color-border-soft); font-size:13px; }
+.participants-table th { background:var(--color-surface-alt); font-size:11px; letter-spacing:.5px; text-transform:uppercase; }
+.participants-table tbody tr:hover { background:#eef6ff; }
+.club-cell { display:flex; align-items:center; gap:10px; }
+.club-cell img { width:34px; height:34px; object-fit:cover; border-radius:10px; border:1px solid var(--color-border-soft); }
+/* Nuovo header competizione */
+.comp-hero { position:relative; margin-top:0; padding:26px 28px 50px; border-radius:28px; }
+.comp-hero-inner { display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+.comp-logo-box { width:110px; height:110px; background:#ffffff22; border:2px solid #ffffff55; border-radius:22px; display:flex; align-items:center; justify-content:center; font-size:40px; font-weight:700; overflow:hidden; flex-shrink:0; backdrop-filter:blur(4px); }
+.comp-logo-box img { width:100%; height:100%; object-fit:contain; }
+.comp-title-wrap { display:flex; flex-direction:column; gap:4px; min-width:220px; }
+.comp-title-wrap h1 { margin:0; font-size:46px; line-height:1; letter-spacing:1px; text-shadow:0 3px 8px rgba(0,0,0,0.35); }
+.champ-box { margin-top:14px; background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.42); padding:10px 14px 11px; border-radius:16px; display:flex; flex-direction:column; gap:4px; width:fit-content; max-width:260px; backdrop-filter:blur(5px); box-shadow:0 4px 12px -4px rgba(0,0,0,0.4); }
+.champ-label { font-size:10px; font-weight:700; letter-spacing:1px; text-transform:uppercase; opacity:.85; }
+.champ-name { font-size:16px; font-weight:700; letter-spacing:.5px; line-height:1.1; text-shadow:0 2px 4px rgba(0,0,0,0.35); }
+.champ-season-line { font-size:11px; font-weight:600; letter-spacing:.6px; opacity:.8; }
+.comp-trophy-box { position:absolute; top:18px; right:18px; width:88px; height:88px; background:#ffffff22; border:2px solid #ffffff66; border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:56px; overflow:hidden; backdrop-filter:blur(4px); box-shadow:0 4px 16px -4px rgba(0,0,0,0.4); }
+.comp-trophy-box img { width:100%; height:100%; object-fit:contain; }
+.comp-edit-btn { position:absolute; right:18px; bottom:14px; background:transparent; color:#fff; border:1px solid #fff; padding:5px 10px 5px; border-radius:16px; font-size:11px; font-weight:600; letter-spacing:.5px; cursor:pointer; backdrop-filter:blur(3px); line-height:1.1; }
+.comp-edit-btn:hover { background:rgba(255,255,255,0.15); }
+@media (max-width:640px){ .comp-hero { padding:24px 20px 60px; } .comp-title-wrap h1 { font-size:40px; } .comp-logo-box { width:90px; height:90px; } .comp-trophy-box { width:74px; height:74px; } }
+</style>
+</head>
+<body>
+<header class="global-top-bar site-nav">
+  <div class="brand"><span class="dot"></span><span>BBSL</span></div>
+  <nav aria-label="Navigazione principale">
+    <a href="home.html">Home</a>
+    <a href="clubs.html">Club</a>
+    <a href="competizioni.html">Competizioni</a>
+    <a href="listone.html">Listone</a>
+    <a href="asta.html">Asta</a>
+  <a href="albo.html">Albo d'oro</a>
+  <a href="index.html">Savegame</a>
+  </nav>
+</header>
+<main>
+  <div id="compHeader" class="fade-in"></div>
+  <div id="participantsWrap" class="panel" style="display:none;">
+    <h2 class="border-accent">Squadre partecipanti</h2>
+    <table class="participants-table" id="participantsTable"><thead><tr><th>Club</th><th>Rosa</th><th>Ingaggi</th><th>Budget</th></tr></thead><tbody></tbody></table>
+    <div class="table-note">Rosa / Ingaggi mostrano progress bar di saturazione.</div>
+  </div>
+</main>
+<div id="modalRoot"></div>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData, saveData } from './src/js/storage.js';
+import { syncAllClubBudgets } from './src/js/model.js';
+(async () => {
+  await ensureAuth();
+  let data = await initData();
+  (function markCurrent(){ const cur=location.pathname.split('/').pop().toLowerCase(); document.querySelectorAll('.site-nav nav a').forEach(a=>{ if(a.getAttribute('href').toLowerCase()===cur){ a.classList.add('active'); a.setAttribute('aria-current','page'); } }); })();
+  syncAllClubBudgets(data);
+  data.meta = data.meta || {};
+  data.meta.competitions = data.meta.competitions || {}; // store per-competition customizations
+  const params = new URLSearchParams(location.search);
+  const type = params.get('type'); // 'division' | 'competition'
+  const id = params.get('id');
+  if(!type || !id) { document.body.innerHTML='<p>Parametri mancanti</p>'; return; }
+  let record=null; let recordTypeLabel='';
+  if(type==='division') { record = (data.divisions||[]).find(d=>d.id===id); recordTypeLabel='Divisione'; }
+  else if(type==='competition') { record = (data.competitions||[]).find(c=>c.id===id); recordTypeLabel = 'Competizione'; }
+  if(!record) { document.body.innerHTML='<p>Competizione non trovata</p>'; return; }
+  const custom = data.meta.competitions[id] || { colors: ['#334','#667'], logo:'', trophy:'' };
+  data.meta.competitions[id] = custom; // ensure
+  saveData(data);
+  function buildHeader(){
+    const [c1,c2] = custom.colors.length? custom.colors : ['#334','#667'];
+    const gradient = `linear-gradient(110deg, ${c1}, ${c2})`;
+    const initials = record.name.split(' ').map(w=>w[0]).slice(0,3).join('');
+    const logoHtml = custom.logo ? `<img src="${custom.logo}" alt="Logo ${record.name}"/>` : initials;
+    const trophyHtml = custom.trophy ? `<img src="${custom.trophy}" alt="Trofeo"/>` : '🏆';
+    // Campione in carica: ultimo (stagione più alta) nel meta.albo per questa competizione
+    function seasonLabel(y){ return `${y}-${String(y+1).slice(2)}`; }
+    let champClub = null; let champSeason = null; const alboEntries = (data.meta.albo && data.meta.albo[id]) || [];
+    if(alboEntries.length){ const last = alboEntries.reduce((acc,cur)=> cur.season> (acc?.season??-Infinity) ? cur : acc, null); if(last){ champSeason = last.season; champClub = data.clubs.find(c=>c.id===last.clubId); } }
+    let champHTML;
+    if(champClub){
+      champHTML = `<div class='champ-label'>CAMPIONE IN CARICA</div><div class='champ-name'>${champClub.name}</div><div class='champ-season-line'>${seasonLabel(champSeason)}</div>`;
+    } else {
+      champHTML = `<div class='champ-label'>CAMPIONE IN CARICA</div><div class='champ-name' style='opacity:.6;'>-</div>`;
+    }
+    const h = document.getElementById('compHeader');
+    h.innerHTML = `<section class='comp-hero hero' style='background:${gradient};'>`+
+      `<div class='comp-hero-inner'>`+
+        `<div class='comp-logo-box'>${logoHtml}</div>`+
+        `<div class='comp-title-wrap'><h1>${record.name}</h1>`+
+          `<div class='champ-box' id='champBox' aria-live='polite'>${champHTML}</div>`+
+        `</div>`+
+      `</div>`+
+      `<div class='comp-trophy-box' aria-hidden='false'>${trophyHtml}</div>`+
+      `<button id='editCompBtn' class='comp-edit-btn'>Modifica competizione</button>`+
+    `</section>`;
+    document.getElementById('editCompBtn').addEventListener('click', openEditCompetitionModal);
+  }
+  buildHeader();
+  // Show participants only for divisions for now
+  if(type==='division') {
+    document.getElementById('participantsWrap').style.display='block';
+    renderParticipants();
+  }
+  function renderParticipants(){
+    const tbody = document.querySelector('#participantsTable tbody');
+    tbody.innerHTML='';
+    const clubs = data.clubs.filter(c=>c.divisionId===id);
+    clubs.forEach(c => {
+      const [c1,c2] = c.colors||['#222','#eee'];
+      const logo = c.logo ? `<img src='${c.logo}' alt='logo'>` : `<div style='width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:${c1};color:${c2};font-weight:700;border-radius:10px;'>${c.name[0]||'?'}<div>`;
+      const rosterCount = c.roster.filter(r=>r.status==='active').length;
+      const rosterPerc = Math.min(100, Math.round(rosterCount/30*100));
+      const wagePerc = Math.min(100, Math.round((c.wageTotal||0)/110*100));
+      const budgetCls = c.budget>=300?'high': (c.budget>=120?'mid':'low');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><a class='club-cell' href='club.html?id=${c.id}'>${logo}<span>${c.name}</span></a></td>`+
+        `<td>${rosterCount}/30<div class='mini-progress'><span style='width:${rosterPerc}%;'></span></div></td>`+
+        `<td>${c.wageTotal}/110<div class='mini-progress wage'><span style='width:${wagePerc}%;'></span></div></td>`+
+        `<td><span class='badge-budget ${budgetCls}'>${c.budget}</span></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  function openEditCompetitionModal(){
+    const root = document.getElementById('modalRoot');
+    const palette = ['#003366','#004c99','#0077b6','#0f766e','#15803d','#a21caf','#be123c','#c48c00','#111827','#6d28d9','#dc2626','#2563eb','#16a34a','#64748b'];
+    const legacyLogo = custom.logo && /^data:/i.test(custom.logo);
+    const legacyTrophy = custom.trophy && /^data:/i.test(custom.trophy);
+    root.innerHTML = `<div class='modal-overlay'><div class='modal'>
+      <h3>Modifica ${record.name}</h3>
+      <form id='editCompForm' style='display:flex;flex-direction:column;gap:10px;'>
+        <label>Path Logo <input name='logoPath' placeholder='media/logo_comp.webp' value='${legacyLogo?"":(custom.logo||"")}'></label>
+        <label>Path Trofeo <input name='trophyPath' placeholder='media/trophy_comp.webp' value='${legacyTrophy?"":(custom.trophy||"")}'></label>
+        ${(legacyLogo||legacyTrophy)?`<div style='background:#fff3cd;color:#7c5e00;padding:6px 8px;border-radius:6px;font-size:11px;margin-bottom:2px;'>Rilevati dataURL legacy: sostituisci con file statici in media/.</div>`:''}
+        <small style='display:block;margin:-4px 0 4px;font-size:11px;color:#555;'>Inserisci percorsi relativi ai file statici (cartella media/). Esempio: media/superleague.webp</small>
+        <div>
+          <strong style='font-size:12px;'>Colori</strong>
+          <div style='display:flex;flex-direction:column;gap:6px;margin-top:4px;'>
+            <div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap;'>
+              <div style='display:flex;align-items:center;gap:6px;'>
+                <label style='display:flex;flex-direction:column;font-size:11px;'>Primario
+                  <input type='color' id='compColor1' value='${(custom.colors&&custom.colors[0])||'#334'}' style='padding:0;width:46px;height:32px;border:none;background:transparent;'>
+                </label>
+                <input id='compHex1' value='${(custom.colors&&custom.colors[0])||'#334'}' maxlength='9' style='width:80px;font-size:12px;padding:4px 6px;' aria-label='HEX primario'>
+                <button type='button' id='pickComp1' class='btn-sm btn-outline' style='font-size:11px;'>Contagocce</button>
+              </div>
+              <div style='display:flex;align-items:center;gap:6px;'>
+                <label style='display:flex;flex-direction:column;font-size:11px;'>Secondario
+                  <input type='color' id='compColor2' value='${(custom.colors&&custom.colors[1])|| (custom.colors&&custom.colors[0]) || '#667'}' style='padding:0;width:46px;height:32px;border:none;background:transparent;'>
+                </label>
+                <input id='compHex2' value='${(custom.colors&&custom.colors[1])|| (custom.colors&&custom.colors[0]) || '#667'}' maxlength='9' style='width:80px;font-size:12px;padding:4px 6px;' aria-label='HEX secondario'>
+                <button type='button' id='pickComp2' class='btn-sm btn-outline' style='font-size:11px;'>Contagocce</button>
+              </div>
+            </div>
+            <span style='font-size:11px;color:#555;'>Oppure scegli dalla palette rapida (max 2)</span>
+            <div class='color-picker-grid' id='colorGrid'></div>
+          </div>
+        </div>
+        <div style='display:flex; gap:8px; justify-content:flex-end; margin-top:8px;'>
+          <button type='button' id='cancelCompEdit' class='btn-outline'>Annulla</button>
+          <button type='submit'>Salva</button>
+        </div>
+      </form>
+    </div></div>`;
+    const grid = document.getElementById('colorGrid');
+    let sel = [...(custom.colors||[])];
+    const ci1 = document.getElementById('compColor1');
+    const ci2 = document.getElementById('compColor2');
+    const hx1 = document.getElementById('compHex1');
+    const hx2 = document.getElementById('compHex2');
+    function normalizeHex(v){ v=v.trim(); if(!v) return ''; if(!v.startsWith('#')) v='#'+v; return /^#([0-9a-fA-F]{3,8})$/.test(v)?v:''; }
+    function renderSwatches(){
+      grid.innerHTML='';
+      palette.forEach(col => { const div=document.createElement('div'); div.className='color-swatch'+(sel.includes(col)?' selected':''); div.style.background=col; div.tabIndex=0; div.setAttribute('role','button'); div.addEventListener('click',()=>{ if(sel.includes(col)){ sel=sel.filter(c=>c!==col); } else { if(sel.length<2) sel.push(col); else sel[1]=col; } if(sel[0]) { ci1.value=sel[0]; hx1.value=sel[0]; } if(sel[1]) { ci2.value=sel[1]; hx2.value=sel[1]; } renderSwatches(); }); div.addEventListener('keydown',e=>{ if(['Enter',' '].includes(e.key)){ e.preventDefault(); div.click(); }}); grid.appendChild(div); });
+    }
+    renderSwatches();
+    function syncFromPickers(){ sel[0]=ci1.value; sel[1]=ci2.value; renderSwatches(); }
+    ci1.addEventListener('input', ()=> { hx1.value=ci1.value; syncFromPickers(); });
+    ci2.addEventListener('input', ()=> { hx2.value=ci2.value; syncFromPickers(); });
+    hx1.addEventListener('change', ()=> { const v=normalizeHex(hx1.value); if(v){ ci1.value=v; syncFromPickers(); } else { hx1.value=ci1.value; } });
+    hx2.addEventListener('change', ()=> { const v=normalizeHex(hx2.value); if(v){ ci2.value=v; syncFromPickers(); } else { hx2.value=ci2.value; } });
+    function attachEye(btnId, inputColor, inputHex, idx){ const btn=document.getElementById(btnId); if(!('EyeDropper' in window)){ btn.style.display='none'; return; } btn.addEventListener('click', async ()=> { try { const eye=new EyeDropper(); const res=await eye.open(); inputColor.value=res.sRGBHex; inputHex.value=res.sRGBHex; sel[idx]=res.sRGBHex; if(idx===0 && sel.length===1) sel[1]=ci2.value; if(idx===1 && sel.length===0) sel[0]=ci1.value; renderSwatches(); } catch(e){} }); }
+    attachEye('pickComp1', ci1, hx1, 0);
+    attachEye('pickComp2', ci2, hx2, 1);
+    document.getElementById('cancelCompEdit').addEventListener('click', ()=> root.innerHTML='');
+    document.getElementById('editCompForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      // Aggiorna array colori da picker (garantisce 2 elementi se disponibili)
+      sel[0] = ci1.value; sel[1] = ci2.value;
+      if(sel.length) custom.colors = sel.slice(0,2);
+      const lp = fd.get('logoPath').trim();
+      const tp = fd.get('trophyPath').trim();
+      if(lp) custom.logo = lp; else if(!/^data:/i.test(custom.logo)) custom.logo='';
+      if(tp) custom.trophy = tp; else if(!/^data:/i.test(custom.trophy)) custom.trophy='';
+      saveData(data);
+      root.innerHTML='';
+      buildHeader();
+      if(type==='division') renderParticipants();
+    });
+  }
+})();
+</script>
+</body>
+</html>

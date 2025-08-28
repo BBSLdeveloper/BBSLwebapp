@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Competizioni - Bar Birsa Super League Official App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<style>
+/* Nuovo layout cards competizioni con loghi e gradient ufficiali */
+.comp-grid { display:grid; gap:28px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); margin-top:28px; }
+.comp-card { --c1:#1e3a8a; --c2:#2563eb; background:linear-gradient(130deg,var(--c1),var(--c2)); color:#fff; border-radius:26px; padding:20px 20px 18px; position:relative; overflow:hidden; text-decoration:none; display:flex; align-items:flex-start; gap:18px; box-shadow:0 10px 32px -12px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,0.08); transition:.45s cubic-bezier(.16,.8,.24,1); }
+.comp-card:before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 25% 20%,rgba(255,255,255,0.24),transparent 60%), radial-gradient(circle at 82% 75%,rgba(255,255,255,0.18),transparent 65%); mix-blend-mode:overlay; pointer-events:none; }
+.comp-card:hover { transform:translateY(-8px); box-shadow:0 18px 50px -14px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,0.12); }
+.comp-logo { width:86px; height:86px; background:rgba(255,255,255,0.18); border:2px solid rgba(255,255,255,0.45); border-radius:22px; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; backdrop-filter:blur(4px); box-shadow:0 4px 14px -4px rgba(0,0,0,0.55); }
+.comp-logo img { width:100%; height:100%; object-fit:contain; display:block; }
+.comp-info { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.comp-info h3 { margin:0; font-size:22px; letter-spacing:.5px; line-height:1.1; text-shadow:0 2px 4px rgba(0,0,0,0.4); }
+.comp-desc { margin:0; font-size:13px; opacity:.9; line-height:1.35; max-width:420px; }
+.comp-pill { align-self:flex-start; margin-top:4px; background:rgba(255,255,255,0.20); border:1px solid rgba(255,255,255,0.40); padding:6px 14px 5px; border-radius:18px; font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; backdrop-filter:blur(4px); display:inline-flex; gap:6px; align-items:center; }
+.comp-card:hover .comp-pill { background:rgba(255,255,255,0.30); }
+@media (max-width:640px){ .comp-grid { gap:22px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); } .comp-logo { width:72px; height:72px; border-radius:18px; } .comp-info h3 { font-size:20px; } }
+</style>
+</head>
+<body>
+<header class="global-top-bar site-nav">
+  <div class="brand"><span class="dot"></span><span>BBSL</span></div>
+  <nav aria-label="Navigazione principale">
+    <a href="home.html">Home</a>
+    <a href="clubs.html">Club</a>
+    <a href="competizioni.html">Competizioni</a>
+    <a href="listone.html">Listone</a>
+    <a href="asta.html">Asta</a>
+  <a href="albo.html">Albo d'oro</a>
+  <a href="index.html">Savegame</a>
+  </nav>
+</header>
+<main>
+  <section class="panel">
+    <h2>Seleziona Competizione</h2>
+    <div id="compGrid" class="comp-grid"></div>
+  </section>
+</main>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData } from './src/js/storage.js';
+(async () => {
+  await ensureAuth();
+  const data = await initData();
+  (function markCurrent(){ const cur=location.pathname.split('/').pop().toLowerCase(); document.querySelectorAll('.site-nav nav a').forEach(a=>{ if(a.getAttribute('href').toLowerCase()===cur){ a.classList.add('active'); a.setAttribute('aria-current','page'); } }); })();
+  const grid = document.getElementById('compGrid');
+  const comps = [
+    { id:'div_a', type:'division', title:'Bar Birsa Super League', desc:'Massima divisione' },
+    { id:'div_b', type:'division', title:"Mamo’s B League", desc:'Seconda divisione' },
+  { id:'cup_tbakery', type:'competition', title:'T-Bakery Cup', desc:'Coppa di lega ad eliminazione' },
+  { id:'sup_olympus', type:'competition', title:'Olympus Supercup', desc:'Finalissima in apertura di stagione' }
+  ];
+  const LOGOS_FALLBACK = {
+    'div_a':'media/BBSL_Logo.png',
+    'div_b':'media/MBL_Trofeo.png',
+    'cup_tbakery':'media/TBcup_Logo.png',
+    'sup_olympus':'media/Olympus Supercup_logo.jpg'
+  };
+  function deriveColors(id, type){
+    const metaCols = data.meta?.competitions?.[id]?.colors;
+    if(Array.isArray(metaCols) && metaCols.length) return [metaCols[0], metaCols[1]||metaCols[0]];
+    if(type==='division'){
+      const clubs = data.clubs.filter(c=>c.divisionId===id && Array.isArray(c.colors));
+      if(clubs.length){
+        const freq = new Map(); clubs.forEach(c=>{const col=c.colors[0]; if(col) freq.set(col,(freq.get(col)||0)+1);});
+        const sorted=[...freq.entries()].sort((a,b)=>b[1]-a[1]);
+        const primary=sorted[0]?.[0]||'#1e3a8a';
+        const secondary=sorted[1]?.[0]|| clubs.find(cl=>cl.colors[1])?.colors[1] || '#2563eb';
+        return [primary, secondary];
+      }
+    }
+    return ['#1e3a8a','#2563eb'];
+  }
+  comps.forEach(c => {
+  const compMeta = data.meta?.competitions?.[c.id];
+  const [col1,col2] = deriveColors(c.id, c.type);
+    const a = document.createElement('a');
+    a.className='comp-card';
+    a.href = `competition.html?type=${c.type}&id=${c.id}`;
+    a.style.setProperty('--c1', col1);
+    a.style.setProperty('--c2', col2);
+  const logo = (compMeta && compMeta.logo) ? compMeta.logo : LOGOS_FALLBACK[c.id];
+    a.innerHTML = `<div class='comp-logo'>${logo?`<img src='${logo}' alt='Logo ${c.title}'>` : c.title.split(' ').map(w=>w[0]).slice(0,3).join('')}</div>`+
+      `<div class='comp-info'><h3>${c.title}</h3><p class='comp-desc'>${c.desc}</p><span class='comp-pill'>Apri</span></div>`;
+    grid.appendChild(a);
+  });
+})();
+</script>
+</body>
+</html>

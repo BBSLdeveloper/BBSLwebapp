@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Home - Bar Birsa Super League Official App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<style>
+html,body { height:100%; }
+body { margin:0; font-family:system-ui, 'Inter', Arial, sans-serif; background:#020307; color:#f6f8fa; -webkit-font-smoothing:antialiased; }
+:root { --bbsl-primary:#2563eb; --bbsl-deep:#1e3a8a; }
+.stage { position:relative; min-height:100%; display:flex; flex-direction:column; }
+.top-bar { position:absolute; top:0; left:0; right:0; z-index:20; display:flex; align-items:center; justify-content:space-between; padding:18px 40px 14px; font-size:13px; }
+.brand { font-weight:700; letter-spacing:2px; font-size:14px; display:flex; align-items:center; gap:10px; text-transform:uppercase; }
+.brand .dot { width:10px; height:10px; background:linear-gradient(135deg,#2563eb,#38bdf8); border-radius:50%; box-shadow:0 0 0 4px rgba(37,99,235,0.15),0 0 0 1px rgba(255,255,255,0.3); animation:pulse 4s infinite; }
+@keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(.6); opacity:.55; } }
+.top-bar nav a { color:#dce7ff; text-decoration:none; margin-left:20px; position:relative; font-weight:500; letter-spacing:.4px; padding:6px 4px; }
+.top-bar nav a:after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,#2563eb,#38bdf8); transform:scaleX(0); transform-origin:left; transition:.35s; border-radius:4px; }
+.top-bar nav a:hover:after, .top-bar nav a:focus-visible:after { transform:scaleX(1); }
+/* ===== Center Hero ===== */
+.hero { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:0; text-align:center; position:relative; z-index:10; }
+.wordmark { font-size: clamp(56px, 10vw, 120px); line-height:.85; margin:0; font-weight:900; letter-spacing:3px; background:linear-gradient(105deg,#ffffff 0%, #f0f5ff 35%, #dfe7f4 70%, #c7d4e6 100%); -webkit-background-clip:text; background-clip:text; color:transparent; filter:drop-shadow(0 10px 30px rgba(0,0,0,0.55)); }
+.wordmark-sub { margin:10px 0 2px; font-size:clamp(14px,2vw,26px); font-weight:800; letter-spacing:7px; text-indent:3px; background:linear-gradient(90deg,#ffffff 0%,#ecf2fa 45%,#d7e1ed 80%); -webkit-background-clip:text; background-clip:text; color:transparent; display:inline-block; filter:drop-shadow(0 4px 20px rgba(0,0,0,0.45)); }
+.tagline { margin:30px 0 52px; font-size:clamp(16px,2.1vw,26px); font-weight:500; letter-spacing:.5px; color:#e2e8f5; max-width:980px; line-height:1.25; }
+/* Accent divider */
+.divider { width:180px; height:2px; background:linear-gradient(90deg, transparent,#2563eb 45%,#38bdf8 55%, transparent); margin:42px auto 34px; position:relative; overflow:hidden; }
+.divider:before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent,#fff,transparent); animation:scan 4.5s linear infinite; mix-blend-mode:overlay; }
+@keyframes scan { 0% { transform:translateX(-100%); } 100% { transform:translateX(100%); } }
+/* ===== Main Panel (mega pannello) ===== */
+.home-shell { width:100%; max-width:none; min-height:100vh; background:linear-gradient(135deg,#1e3a8a 0%, #2563eb 65%); padding:140px 80px 160px; border-radius:0; box-shadow:none; backdrop-filter:none; position:relative; overflow:hidden; margin:0; display:flex; flex-direction:column; align-items:center; }
+.home-core { width:100%; max-width:1250px; display:flex; flex-direction:column; align-items:center; }
+.home-logo { width:auto; height:130px; max-width:340px; object-fit:contain; margin:0 0 34px; filter:drop-shadow(0 10px 30px rgba(0,0,0,0.55)); }
+.home-shell:before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 35% 25%,rgba(255,255,255,0.18),transparent 60%), radial-gradient(circle at 70% 70%,rgba(255,255,255,0.12),transparent 65%); mix-blend-mode:overlay; pointer-events:none; }
+.home-shell .wordmark { filter:drop-shadow(0 6px 34px rgba(0,0,0,0.55)); }
+@media (max-width:1200px){ .home-shell { padding:130px 60px 150px; } }
+@media (max-width:900px){ .home-shell { padding:120px 46px 140px; } .home-logo { height:110px; margin-bottom:28px; } }
+@media (max-width:640px){ .home-shell { padding:110px 32px 130px; } }
+@media (max-width:560px){ .home-shell { padding:100px 22px 120px; } .home-logo { height:90px; margin-bottom:22px; } }
+/* ===== Navigation Hub ===== */
+.nav-hub { width:100%; max-width:760px; display:flex; flex-direction:column; align-items:center; gap:22px; padding:0 10px; }
+.hub-row { display:flex; gap:16px; justify-content:center; }
+.hub-row-bottom { margin-top:-6px; }
+.hub-row { flex-wrap:nowrap; }
+@media (max-width:900px){ .hub-row { flex-wrap:wrap; } }
+@media (max-width:640px){
+  .hub-row { flex-wrap:wrap; gap:22px; }
+  .nav-hub { gap:20px; }
+  .hub-row .hub-item { flex:1 1 46%; min-width:150px; }
+  .hub-row-bottom .hub-item { flex:1 1 46%; }
+}
+/* Riduzione dimensioni hub buttons */
+.hub-item { --border:rgba(255,255,255,0.12); position:relative; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:11px; padding:4px 8px 4px; text-decoration:none; color:#f1f7ff; display:flex; flex-direction:column; gap:2px; backdrop-filter:blur(10px) saturate(140%); box-shadow:0 2px 8px -6px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05); transition:.32s cubic-bezier(.16,.8,.24,1); overflow:hidden; width:105px; height:40px; justify-content:center; align-items:center; }
+.hub-item .label { font-size:11px; }
+/* Elegance tweak (neutral color retained) */
+.hub-item { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.12); box-shadow:0 4px 14px -10px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05); }
+.hub-item:before, .hub-item:after { content:""; position:absolute; inset:0; pointer-events:none; transition:.55s; }
+.hub-item:before { background:radial-gradient(circle at 32% 22%,rgba(255,255,255,0.28),transparent 65%); mix-blend-mode:overlay; opacity:.4; }
+.hub-item:after { background:linear-gradient(150deg,rgba(255,255,255,0.5) 0%,transparent 50%); opacity:0; }
+.hub-item .label { font-size:12px; font-weight:700; letter-spacing:.85px; text-transform:uppercase; color:#f1f7ff; text-shadow:0 1px 3px rgba(0,0,0,0.45); }
+.hub-item:hover { transform:translateY(-6px) scale(1.02); box-shadow:0 10px 26px -10px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,0.14); border-color:rgba(255,255,255,0.28); }
+.hub-item:hover:after { opacity:.55; }
+.hub-item:active { transform:translateY(-2px) scale(.97); }
+.hub-item:focus-visible { outline:none; box-shadow:0 0 0 2px #fff, 0 0 0 4px rgba(255,255,255,0.35); }
+@media (max-width:900px){ .hub-item { width:92px; height:38px; padding:4px 7px 4px; } .hub-row { gap:14px; } }
+@media (max-width:640px){ .hub-item { width:42%; min-width:82px; height:36px; padding:4px 6px 4px; } .hub-row { gap:10px; } .hub-item .label { font-size:10px; } }
+.hub-item:before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 35% 15%,rgba(255,255,255,0.25),transparent 70%); opacity:0; transition:.6s; }
+.hub-item:after { content:""; position:absolute; inset:0; background:linear-gradient(140deg,rgba(255,255,255,0.35),transparent 55%); opacity:0; mix-blend-mode:overlay; transition:.6s; }
+.hub-item:hover { transform:translateY(-8px); box-shadow:0 12px 38px -10px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,0.10); border-color:rgba(255,255,255,0.4); }
+.hub-item:hover:before, .hub-item:hover:after { opacity:1; }
+.hub-item:active { transform:translateY(-3px) scale(.97); }
+.hub-item .icon { width:34px; height:34px; border-radius:11px; background:linear-gradient(145deg,#1d4ed8,#2563eb 55%,#3b82f6); display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px -4px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.12); position:relative; }
+.hub-item .icon svg { width:20px; height:20px; stroke:#fff; stroke-width:1.4; fill:none; vector-effect:non-scaling-stroke; }
+.hub-item .label { font-size:13px; font-weight:600; letter-spacing:.6px; text-transform:uppercase; }
+.hub-item .hint { font-size:12px; letter-spacing:.5px; opacity:.7; font-weight:500; }
+/* Per-item accent override colors */
+.hub-item[data-accent="gold"] .icon { background:linear-gradient(145deg,#c48c00,#d9a900 55%,#facc15); }
+.hub-item[data-accent="emerald"] .icon { background:linear-gradient(145deg,#065f46,#047857 55%,#10b981); }
+.hub-item[data-accent="rose"] .icon { background:linear-gradient(145deg,#9d174d,#be185d 55%,#ec4899); }
+.hub-item[data-accent="violet"] .icon { background:linear-gradient(145deg,#5b21b6,#6d28d9 55%,#8b5cf6); }
+.hub-item[data-accent="slate"] .icon { background:linear-gradient(145deg,#334155,#475569 55%,#64748b); }
+/* Layout footer */
+.home-footer { margin:80px 0 30px; font-size:11px; letter-spacing:.6px; opacity:.55; text-transform:uppercase; display:flex; gap:16px; align-items:center; justify-content:center; flex-wrap:wrap; }
+.version-pill { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); padding:4px 10px; border-radius:20px; font-size:10px; letter-spacing:1px; font-weight:600; }
+/* ===== Inline Home Editor ===== */
+.home-edit-btn { position:fixed; right:14px; bottom:14px; z-index:60; background:rgba(255,255,255,0.10); color:#fff; border:1px solid rgba(255,255,255,0.25); font-size:11px; padding:6px 10px; border-radius:18px; cursor:pointer; backdrop-filter:blur(6px); line-height:1; letter-spacing:.5px; }
+.home-edit-btn:hover { background:rgba(255,255,255,0.18); }
+.home-edit-modal { position:fixed; right:14px; bottom:52px; z-index:70; background:#0d1522; border:1px solid #1e2b3a; padding:14px 16px 16px; border-radius:16px; width:230px; box-shadow:0 8px 28px -8px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,0.04); display:flex; flex-direction:column; gap:10px; font-size:12px; }
+.home-edit-modal h5 { margin:0 0 4px; font-size:12px; letter-spacing:.6px; font-weight:600; color:#e2e8f0; }
+.home-edit-row { display:flex; align-items:center; gap:6px; }
+.home-edit-row label { display:flex; flex-direction:column; gap:4px; font-size:10px; letter-spacing:.5px; font-weight:600; color:#94a3b8; flex:1; }
+.home-edit-row input[type=color] { padding:0; width:42px; height:32px; border:none; background:transparent; cursor:pointer; }
+.home-edit-row input[type=text] { flex:1; padding:6px 6px; margin:0; font-size:11px; background:#0f1d2c; border:1px solid #223249; color:#e2e8f0; border-radius:8px; }
+.home-edit-actions { display:flex; justify-content:space-between; gap:8px; }
+.home-edit-actions button { flex:1; padding:6px 8px; font-size:11px; border-radius:10px; background:#2563eb; border:none; cursor:pointer; color:#fff; font-weight:600; letter-spacing:.4px; }
+.home-edit-actions button.home-cancel { background:#334155; }
+.home-edit-actions button:hover { filter:brightness(1.08); }
+.home-edit-sample { height:30px; border-radius:10px; border:1px solid #1d2b3a; box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04); }
+.home-edit-note { font-size:9px; line-height:1.3; letter-spacing:.4px; color:#64748b; }
+@media (max-width:840px) {
+  .top-bar { padding:16px 22px 10px; }
+  .nav-hub { gap:18px; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+  .hub-item { padding:22px 18px 20px; border-radius:24px; }
+  .wordmark { letter-spacing:2px; }
+  .hero { padding:120px 24px 60px; }
+}
+@media (max-width:560px) {
+  .wordmark { font-size:56px; }
+  .tagline { font-size:16px; }
+  .hub-item .label { font-size:17px; }
+  .hub-item .icon { width:50px; height:50px; }
+  .hub-item .icon svg { width:28px; height:28px; }
+  .top-bar nav a { margin-left:14px; }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="top-bar">
+    <div class="brand"><span class="dot"></span><span>BBSL</span></div>
+    <nav aria-label="Navigazione rapida">
+      <a href="home.html" aria-current="page">Home</a>
+      <a href="clubs.html">Club</a>
+      <a href="competizioni.html">Competizioni</a>
+      <a href="listone.html">Listone</a>
+      <a href="asta.html">Asta</a>
+  <a href="albo.html">Albo d'oro</a>
+  <a href="index.html">Savegame</a>
+    </nav>
+  </div>
+  <section class="hero" aria-labelledby="titolo-home">
+    <div class="home-shell">
+      <div class="home-core">
+  <img src="media/BBSL_logo_nero.png" alt="Logo BBSL" class="home-logo" />
+        <h1 id="titolo-home" class="wordmark">BAR BIRSA<br/>SUPER LEAGUE</h1>
+        <div class="wordmark-sub">OFFICIAL APP</div>
+        <div class="divider" aria-hidden="true" style="margin-top:46px;"></div>
+      </div>
+      <div class="nav-hub" aria-label="Sezioni principali">
+        <div class="hub-row hub-row-top">
+          <a class="hub-item" data-accent="emerald" href="clubs.html">
+            <span class="label">Club</span>
+          </a>
+          <a class="hub-item" data-accent="violet" href="competizioni.html">
+            <span class="label">Competizioni</span>
+          </a>
+        </div>
+        <div class="hub-row hub-row-bottom">
+          <a class="hub-item" data-accent="slate" href="listone.html">
+            <span class="label">Listone</span>
+          </a>
+          <a class="hub-item" data-accent="rose" href="asta.html">
+            <span class="label">Asta</span>
+          </a>
+          <a class="hub-item" data-accent="gold" href="albo.html">
+            <span class="label">Albo d'oro</span>
+          </a>
+        </div>
+      </div>
+      <div class="home-footer">
+        <span class="version-pill" id="appVersion">v–</span>
+        <span>&copy; BBSL | Internal Use</span>
+      </div>
+    </div>
+  </section>
+</div>
+<button id="editHomeBtn" class="home-edit-btn" type="button" aria-haspopup="dialog" aria-controls="homeEditModal">modifica home</button>
+<div id="homeEditModal" class="home-edit-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="homeEditTitle">
+  <h5 id="homeEditTitle">Sfondo Home</h5>
+  <div class="home-edit-row">
+    <label>Colore 1
+      <input type="color" id="homeColor1" value="#01060d">
+    </label>
+    <input type="text" id="homeHex1" value="#01060d" maxlength="9" aria-label="HEX colore 1" />
+  </div>
+  <div class="home-edit-row">
+    <label>Colore 2
+      <input type="color" id="homeColor2" value="#031b33">
+    </label>
+    <input type="text" id="homeHex2" value="#031b33" maxlength="9" aria-label="HEX colore 2" />
+  </div>
+  <div class="home-edit-sample" id="homeEditSample"></div>
+  <div class="home-edit-actions">
+    <button type="button" class="home-cancel" id="homeCancelBtn">Annulla</button>
+    <button type="button" id="homeSaveBtn">Salva</button>
+  </div>
+  <div class="home-edit-note">I colori vengono salvati localmente (solo su questo dispositivo). Usa il contagocce di sistema nei campi colore.</div>
+</div>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData } from './src/js/storage.js';
+(async () => {
+  await ensureAuth();
+  const data = await initData();
+  try { document.getElementById('appVersion').textContent = 'v' + (data.meta?.version || '1'); } catch(e) {}
+  // Applica i colori reali della Bar Birsa Super League (divisione A) se definiti nella pagina Competizione
+  try {
+    const compColors = data.meta?.competitions?.['div_a']?.colors;
+    if (compColors && compColors.length) {
+      const rootStyle = document.documentElement.style;
+      const c1 = compColors[0];
+      // Se manca il secondo colore generiamo una variante leggermente più chiara
+      let c2 = compColors[1];
+      if (!c2) c2 = tintColor(c1, 0.28);
+      rootStyle.setProperty('--bbsl-deep', c1);
+      rootStyle.setProperty('--bbsl-primary', c2);
+    }
+  } catch(err) { /* silent */ }
+  function tintColor(hex, amt){
+    hex = hex.replace('#','');
+    if(hex.length===3) hex = hex.split('').map(h=>h+h).join('');
+    const num = parseInt(hex,16);
+    let r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+    r = Math.min(255, Math.round(r + (255 - r)*amt));
+    g = Math.min(255, Math.round(g + (255 - g)*amt));
+    b = Math.min(255, Math.round(b + (255 - b)*amt));
+    return '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+  }
+})();
+// ====== Inline editor logic (client-only) ======
+const LS_KEY_HOME_COLORS = 'bbslHomeGradient';
+const editBtn = document.getElementById('editHomeBtn');
+const modal = document.getElementById('homeEditModal');
+const c1 = document.getElementById('homeColor1');
+const c2 = document.getElementById('homeColor2');
+const h1 = document.getElementById('homeHex1');
+const h2 = document.getElementById('homeHex2');
+const sample = document.getElementById('homeEditSample');
+const saveBtn = document.getElementById('homeSaveBtn');
+const cancelBtn = document.getElementById('homeCancelBtn');
+
+function normHex(v){ v=v.trim(); if(!v) return ''; if(!v.startsWith('#')) v='#'+v; if(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) return v.toLowerCase(); return ''; }
+function updateSample(){ sample.style.background = `linear-gradient(170deg, ${c1.value}, ${c2.value})`; }
+function applyGradient(col1,col2){
+  const shell = document.querySelector('.home-shell');
+  if(!shell) return;
+  shell.style.background = `linear-gradient(135deg, ${col1} 0%, ${mix(col1,col2,0.55)} 55%, ${col2} 100%)`;
+  shell.style.boxShadow = `0 20px 80px -30px ${hexAlpha(col2,0.55)}, 0 0 0 1px ${hexAlpha(col1,0.35)}, inset 0 0 0 1px ${hexAlpha(col2,0.35)}`;
+  // Adjust internal light overlay by updating :before via CSS variable
+  shell.style.setProperty('--shell-glow1', hexAlpha(col1,0.25));
+  shell.style.setProperty('--shell-glow2', hexAlpha(col2,0.20));
+  // Inject dynamic style once
+  if(!document.getElementById('shellDynamicStyle')){
+    const st = document.createElement('style');
+    st.id='shellDynamicStyle';
+    st.textContent = `.home-shell:before{background:radial-gradient(circle at 35% 25%, var(--shell-glow1), transparent 60%), radial-gradient(circle at 70% 70%, var(--shell-glow2), transparent 65%);}`;
+    document.head.appendChild(st);
+  }
+}
+function mix(a,b,t){ a=a.replace('#',''); b=b.replace('#',''); if(a.length===3) a=a.split('').map(x=>x+x).join(''); if(b.length===3) b=b.split('').map(x=>x+x).join(''); const ar=parseInt(a.substr(0,2),16), ag=parseInt(a.substr(2,2),16), ab=parseInt(a.substr(4,2),16); const br=parseInt(b.substr(0,2),16), bg=parseInt(b.substr(2,2),16), bb=parseInt(b.substr(4,2),16); const r=Math.round(ar+(br-ar)*t), g=Math.round(ag+(bg-ag)*t), b2=Math.round(ab+(bb-ab)*t); return '#'+[r,g,b2].map(v=>v.toString(16).padStart(2,'0')).join(''); }
+function hexAlpha(hex,a){ hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(x=>x+x).join(''); return `rgba(${parseInt(hex.substr(0,2),16)},${parseInt(hex.substr(2,2),16)},${parseInt(hex.substr(4,2),16)},${a})`; }
+
+// Load stored
+try {
+  const stored = JSON.parse(localStorage.getItem(LS_KEY_HOME_COLORS)||'null');
+  if(stored && stored.c1 && stored.c2){
+    c1.value=stored.c1; c2.value=stored.c2; h1.value=stored.c1; h2.value=stored.c2;
+    applyGradient(stored.c1, stored.c2);
+  } else {
+    // derive from current CSS (fallback initial gradient)
+    c1.value = '#1e3a8a'; c2.value = '#2563eb'; h1.value=c1.value; h2.value=c2.value;
+  }
+  updateSample();
+} catch(e) { updateSample(); }
+
+// Sync text <-> color inputs
+[ [c1,h1], [c2,h2] ].forEach(([col,hex]) => {
+  col.addEventListener('input', ()=>{ hex.value=col.value; updateSample(); });
+  hex.addEventListener('input', ()=>{ const v=normHex(hex.value); if(v){ col.value=v; updateSample(); } });
+});
+
+editBtn.addEventListener('click', ()=>{ const vis = modal.style.display==='block'; modal.style.display=vis?'none':'block'; if(!vis){ updateSample(); } });
+cancelBtn.addEventListener('click', ()=>{ modal.style.display='none'; });
+saveBtn.addEventListener('click', ()=>{
+  const v1 = normHex(c1.value)||'#01060d';
+  const v2 = normHex(c2.value)||'#031b33';
+  c1.value=v1; c2.value=v2; h1.value=v1; h2.value=v2;
+  localStorage.setItem(LS_KEY_HOME_COLORS, JSON.stringify({ c1:v1, c2:v2 }));
+  applyGradient(v1,v2); updateSample(); modal.style.display='none';
+});
+
+// Close on outside click
+document.addEventListener('click', e=>{ if(modal.style.display==='block' && !modal.contains(e.target) && e.target!==editBtn) modal.style.display='none'; });
+// Escape close
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && modal.style.display==='block') modal.style.display='none'; });
+</script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Albo d'oro - Bar Birsa Super League Official App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<style>
+.comp-hero { background:linear-gradient(110deg,#1e3a8a,#2563eb); color:#fff; padding:26px 30px; border-radius:24px; position:relative; overflow:hidden; margin-bottom:18px; display:flex; gap:26px; align-items:center; }
+.comp-hero:before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 78% 18%,rgba(255,255,255,0.25),transparent 60%); }
+.comp-hero .comp-logo { width:90px; height:90px; background:rgba(255,255,255,0.18); border:2px solid rgba(255,255,255,0.45); border-radius:22px; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0; backdrop-filter:blur(4px); box-shadow:0 4px 10px rgba(0,0,0,0.25); }
+.comp-hero .comp-logo img { width:100%; height:100%; object-fit:contain; }
+.comp-hero .comp-text { position:relative; z-index:2; display:flex; flex-direction:column; gap:6px; }
+.comp-hero h2 { margin:0; font-size:36px; letter-spacing:.6px; font-weight:700; }
+.comp-hero .comp-trophy { width:90px; height:90px; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-left:auto; }
+.comp-hero .comp-trophy img { max-width:100%; max-height:100%; object-fit:contain; filter:drop-shadow(0 4px 10px rgba(0,0,0,0.4)); }
+.comp-tables { display:flex; gap:20px; flex-wrap:wrap; }
+.comp-table { flex:1 1 380px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:18px; padding:14px 16px 18px; position:relative; box-shadow:var(--shadow-sm); }
+.comp-table h3 { margin:0 0 12px; font-size:18px; display:flex; justify-content:space-between; align-items:center; }
+.comp-table h3 button { margin:0; }
+.comp-table table { width:100%; border-collapse:collapse; font-size:13px; }
+.comp-table th, .comp-table td { padding:6px 8px; border-bottom:1px solid var(--color-border-soft); text-align:left; }
+.comp-table th { background:var(--color-surface-alt); font-size:11px; letter-spacing:.5px; text-transform:uppercase; }
+.comp-table tbody tr:last-child td { border-bottom:none; }
+.comp-table .del-btn { background:#fff; color:var(--color-danger); border:1px solid var(--color-danger); font-size:11px; padding:2px 6px; border-radius:8px; cursor:pointer; }
+.comp-table .del-btn:hover { background:var(--color-danger); color:#fff; }
+/* Club inline cell */
+.club-mini { display:inline-flex; align-items:center; gap:6px; }
+.club-mini .club-ico { width:22px; height:22px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:#334155; overflow:hidden; border:1px solid var(--color-border-soft); }
+.club-mini .club-ico img { width:100%; height:100%; object-fit:cover; display:block; }
+/* Sorting */
+.sortable { cursor:pointer; user-select:none; }
+.sortable:hover { text-decoration:underline; }
+/* Editions caption */
+.albo-meta { display:flex; align-items:center; gap:12px; }
+.albo-meta .ed-label { font-size:11px; letter-spacing:.5px; font-weight:600; color:#475569; background:var(--color-surface-alt); padding:4px 8px; border-radius:8px; }
+/* Modal */
+#alboModal { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:900; padding:18px; }
+#alboModal .modal-box { background:var(--color-surface); padding:22px 26px; border:1px solid var(--color-border); border-radius:18px; width:clamp(300px,90vw,420px); box-shadow:var(--shadow-md); display:flex; flex-direction:column; gap:14px; }
+#alboModal h4 { margin:0; font-size:20px; }
+#alboModal form { display:flex; flex-direction:column; gap:10px; }
+#alboModal .actions { display:flex; justify-content:flex-end; gap:10px; }
+</style>
+</head>
+<body>
+<header class="global-top-bar site-nav">
+  <div class="brand"><span class="dot"></span><span>BBSL</span></div>
+  <nav aria-label="Navigazione principale">
+    <a href="home.html">Home</a>
+    <a href="clubs.html">Club</a>
+    <a href="competizioni.html">Competizioni</a>
+    <a href="listone.html">Listone</a>
+    <a href="asta.html">Asta</a>
+  <a href="albo.html">Albo d'oro</a>
+  <a href="index.html">Savegame</a>
+  </nav>
+</header>
+<main>
+  <div id="alboRoot"></div>
+</main>
+<div id="alboModal" aria-hidden="true">
+  <div class="modal-box">
+    <h4 id="alboModalTitle">Aggiungi edizione</h4>
+    <form id="alboForm">
+      <label>Stagione
+        <select name="season" id="alboSeason"></select>
+      </label>
+      <label>Vincitore
+        <select name="club" id="alboClub"></select>
+      </label>
+      <div class="actions">
+        <button type="button" id="alboCancel" class="btn-sm btn-secondary">Annulla</button>
+        <button type="submit" class="btn-sm">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData, saveData } from './src/js/storage.js';
+import { announce } from './src/js/ui.js';
+(async () => {
+  await ensureAuth();
+  const data = await initData();
+  (function markCurrent(){ const cur=location.pathname.split('/').pop().toLowerCase(); document.querySelectorAll('.site-nav nav a').forEach(a=>{ if(a.getAttribute('href').toLowerCase()===cur){ a.classList.add('active'); a.setAttribute('aria-current','page'); } }); })();
+  data.meta = data.meta || {};
+  data.meta.albo = data.meta.albo || {}; // { competitionId: [ { season: 2015, clubId: '...' } ] }
+  const alboRoot = document.getElementById('alboRoot');
+
+  // Stato ordinamento per competizione: default desc
+  const sortStates = {};
+
+  // Ordine richiesto: BBSL -> T-Bakery Cup -> Olympus Supercup -> Mamo's B League
+  const ORDER = [
+    { type:'division', id:'div_a' },
+    { type:'competition', id:'cup_tbakery' },
+    { type:'competition', id:'sup_olympus' },
+    { type:'division', id:'div_b' }
+  ];
+
+  const COMP_ASSETS = {
+    'div_a': { logo:'media/BBSL_Logo.png', trophy:'media/BBSL_Trofeo.png', name:'Bar Birsa Super League' },
+  'div_b': { logo:'media/MBL_Trofeo.png', trophy:'media/MBL_Trofeo.png', name:"Mamo’s B League" },
+    'cup_tbakery': { logo:'media/TBcup_Logo.png', trophy:'media/T-BC_Trofeo.png', name:'T-Bakery Cup' },
+    'sup_olympus': { logo:'media/Olympus Supercup_logo.jpg', trophy:'media/OSC_Trofeo.png', name:'Olympus Supercup' }
+  };
+
+  function seasonLabel(year){ return `${year}/${String(year+1).slice(2)}`; }
+  function ensureSeasonsSelect(sel){ sel.innerHTML=''; for(let y=2015; y<=2029; y++){ const opt=document.createElement('option'); opt.value=String(y); opt.textContent=seasonLabel(y); sel.appendChild(opt);} }
+
+  function deriveColors(id){
+    const metaColors = data.meta?.competitions?.[id]?.colors;
+    if(Array.isArray(metaColors) && metaColors.length){ return [metaColors[0], metaColors[1]||metaColors[0]]; }
+    // If division use aggregate like in other pages
+    const div = data.divisions.find(d=>d.id===id);
+    if(div){
+      const clubs = data.clubs.filter(c=>c.divisionId===id && Array.isArray(c.colors));
+      if(clubs.length){
+        const freq=new Map(); clubs.forEach(c=>{const col=c.colors[0]; if(col) freq.set(col,(freq.get(col)||0)+1);});
+        const sorted=[...freq.entries()].sort((a,b)=>b[1]-a[1]);
+        const primary=sorted[0]?.[0]||'#1e3a8a';
+        const secondPool = clubs.map(c=>c.colors[1]).filter(Boolean);
+        const secondary = secondPool.find(c=>c!==primary) || primary;
+        return [primary, secondary];
+      }
+    }
+    return ['#1e3a8a','#2563eb'];
+  }
+
+  function buildAllTime(competitionId){
+    const entries = data.meta.albo[competitionId]||[];
+    const counts = new Map();
+    entries.forEach(e=> { counts.set(e.clubId, (counts.get(e.clubId)||0)+1); });
+    const rows = [...counts.entries()].map(([clubId, wins])=> ({ club: data.clubs.find(c=>c.id===clubId), wins }));
+    rows.sort((a,b)=> b.wins - a.wins || a.club.name.localeCompare(b.club.name));
+    return rows;
+  }
+
+  function render(){
+    alboRoot.innerHTML='';
+    ORDER.forEach(item => {
+      const id = item.id;
+      const asset = COMP_ASSETS[id] || { name:id };
+      const [c1,c2] = deriveColors(id);
+      const wrap=document.createElement('section'); wrap.className='competition-block';
+      // Header
+      const hero=document.createElement('div'); hero.className='comp-hero'; hero.style.background=`linear-gradient(110deg, ${c1}, ${c2})`;
+      hero.innerHTML = `<div class='comp-logo'>${asset.logo?`<img src='${asset.logo}' alt='Logo ${asset.name}'>`:''}</div>`+
+        `<div class='comp-text'><h2>${asset.name}</h2></div>`+
+        `<div class='comp-trophy'>${asset.trophy?`<img src='${asset.trophy}' alt='Trofeo ${asset.name}'>`:''}</div>`;
+      wrap.appendChild(hero);
+      // Tables container
+      const tablesRow=document.createElement('div'); tablesRow.className='comp-tables';
+      // Albo d'oro table
+      const alboBox=document.createElement('div'); alboBox.className='comp-table';
+      const rawEntries = (data.meta.albo[id]||[]).slice();
+      const sortDir = sortStates[id] || 'desc';
+      const entries = rawEntries.sort((a,b)=> sortDir==='desc' ? b.season - a.season : a.season - b.season);
+      const arrow = rawEntries.length ? (sortDir==='desc' ? '▼' : '▲') : '';
+      alboBox.innerHTML = `<h3><span>Albo d'oro</span><span class='albo-meta'><span class='ed-label'>EDIZIONI: ${rawEntries.length}</span><button class='btn-sm' data-add='${id}'>Aggiungi edizione</button></span></h3>`+
+        `<table aria-label='Albo d\'oro ${asset.name}'><thead><tr><th class='sortable' data-sort='${id}'>Stagione ${arrow}</th><th>Vincitore</th><th style='width:38px;'></th></tr></thead><tbody></tbody></table>`;
+      const alboTbody = alboBox.querySelector('tbody');
+      entries.forEach(e=> {
+        const tr=document.createElement('tr');
+        const club = data.clubs.find(c=>c.id===e.clubId);
+        let logoHtml='';
+        if(club){
+          if(club.logo){
+            logoHtml = /^data:/i.test(club.logo)
+              ? `<img src='${club.logo}' alt='${club.name}' />`
+              : `<img src='${club.logo}' alt='${club.name}' onerror="this.style.display='none'" />`;
+          } else {
+            const initials = club.name.split(' ').map(w=>w[0]).slice(0,2).join('');
+            logoHtml = `<span>${initials}</span>`;
+          }
+        }
+        const clubCell = club ? `<span class='club-mini'><span class='club-ico'>${logoHtml}</span><span>${club.name}</span></span>` : '?';
+        tr.innerHTML = `<td>${seasonLabel(e.season)}</td><td>${clubCell}</td>`+
+          `<td><button class='del-btn' data-del='${id}|${e.season}|${e.clubId}' title='Elimina'>✖</button></td>`;
+        alboTbody.appendChild(tr);
+      });
+      tablesRow.appendChild(alboBox);
+      // All-time table
+      const allTimeBox=document.createElement('div'); allTimeBox.className='comp-table';
+      allTimeBox.innerHTML = `<h3>Classifica all-time</h3>`+
+        `<table aria-label='Classifica all-time ${asset.name}'><thead><tr><th>Pos</th><th>Club</th><th>Vittorie</th></tr></thead><tbody></tbody></table>`;
+      const atBody = allTimeBox.querySelector('tbody');
+      buildAllTime(id).forEach((row,i)=>{
+        const tr=document.createElement('tr');
+        const club=row.club; let logoHtml='';
+        if(club){
+          if(club.logo){
+            logoHtml = /^data:/i.test(club.logo)
+              ? `<img src='${club.logo}' alt='${club.name}' />`
+              : `<img src='${club.logo}' alt='${club.name}' onerror="this.style.display='none'" />`;
+          } else {
+            const initials = club.name.split(' ').map(w=>w[0]).slice(0,2).join('');
+            logoHtml = `<span>${initials}</span>`;
+          }
+        }
+        const clubCell = club ? `<span class='club-mini'><span class='club-ico'>${logoHtml}</span><span>${club.name}</span></span>` : '?';
+        tr.innerHTML = `<td>${i+1}</td><td>${clubCell}</td><td>${row.wins}</td>`;
+        atBody.appendChild(tr);
+      });
+      tablesRow.appendChild(allTimeBox);
+      wrap.appendChild(tablesRow);
+      alboRoot.appendChild(wrap);
+    });
+  }
+
+  // Modal logic
+  const modal = document.getElementById('alboModal');
+  const form = document.getElementById('alboForm');
+  const seasonSelect = document.getElementById('alboSeason');
+  const clubSelect = document.getElementById('alboClub');
+  const cancelBtn = document.getElementById('alboCancel');
+  let currentComp = null;
+  ensureSeasonsSelect(seasonSelect);
+
+  function openModal(compId){
+    currentComp = compId;
+  // Popola sempre con TUTTI i club (retrocesse/promozioni storiche)
+  clubSelect.innerHTML='';
+  const clubsList = data.clubs.slice().sort((a,b)=> a.name.localeCompare(b.name));
+  clubsList.forEach(c=> { const opt=document.createElement('option'); opt.value=c.id; opt.textContent=c.name; clubSelect.appendChild(opt); });
+    modal.style.display='flex'; modal.setAttribute('aria-hidden','false');
+    seasonSelect.focus();
+  }
+  function closeModal(){ modal.style.display='none'; modal.setAttribute('aria-hidden','true'); currentComp=null; }
+  cancelBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', e=> { if(e.target===modal) closeModal(); });
+
+  form.addEventListener('submit', e=> {
+    e.preventDefault(); if(!currentComp) return; const season = Number(seasonSelect.value); const clubId = clubSelect.value; if(!clubId) return; data.meta.albo[currentComp] = data.meta.albo[currentComp]||[]; const exists = data.meta.albo[currentComp].some(e=> e.season===season); if(exists){ alert('Stagione già presente'); return; } data.meta.albo[currentComp].push({ season, clubId }); saveData(data); closeModal(); render(); announce('Edizione aggiunta'); });
+
+  document.addEventListener('click', e=> {
+    const add = e.target.closest('[data-add]'); if(add){ openModal(add.dataset.add); }
+    const del = e.target.closest('[data-del]'); if(del){ const [comp, seasonStr, cid] = del.dataset.del.split('|'); const season=Number(seasonStr); data.meta.albo[comp] = (data.meta.albo[comp]||[]).filter(x=> !(x.season===season && x.clubId===cid)); saveData(data); render(); announce('Edizione rimossa'); }
+  const sortHead = e.target.closest('[data-sort]');
+  if(sortHead){ const compId = sortHead.dataset.sort; const cur = sortStates[compId] || 'desc'; sortStates[compId] = cur==='desc' ? 'asc' : 'desc'; render(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
