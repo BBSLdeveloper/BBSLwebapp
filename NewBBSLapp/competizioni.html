@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Competizioni</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<style>
+.comp-grid { display:grid; gap:20px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); margin-top:20px; }
+.comp-card { background:#fff; border:1px solid #d0d7de; border-radius:14px; padding:18px 16px; display:flex; flex-direction:column; gap:12px; position:relative; overflow:hidden; }
+.comp-card h3 { margin:0; font-size:20px; }
+.comp-card button, .comp-card a.btn { background:#2563eb; color:#fff; padding:8px 12px; border:none; border-radius:8px; cursor:pointer; font-size:13px; text-decoration:none; text-align:center; }
+.comp-card button:hover, .comp-card a.btn:hover { background:#1d4ed8; }
+.comp-card .logo-box { width:80px; height:80px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:12px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:28px; color:#334155; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Competizioni</h1>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="listone.html">Listone</a>
+    <a href="clubs.html">Club</a>
+    <a href="asta.html">Asta</a>
+  </nav>
+</header>
+<main>
+  <section class="panel">
+    <h2>Seleziona Competizione</h2>
+    <div id="compGrid" class="comp-grid"></div>
+  </section>
+</main>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData } from './src/js/storage.js';
+(async () => {
+  await ensureAuth();
+  const data = await initData();
+  // Hardcoded mapping names -> route id param
+  const mapping = {
+    'Bar Birsa Super League': { id:'div_a', type:'division', link:'competition.html?type=division&id=div_a' },
+    "Mamo’s B League": { id:'div_b', type:'division', link:'competition.html?type=division&id=div_b' },
+    'T-Bakery Cup': { id:'cup_tbakery', type:'competition', link:'competition.html?type=competition&id=cup_tbakery' },
+    'Olympus Supercup': { id:'sup_olympus', type:'competition', link:'competition.html?type=competition&id=sup_olympus' }
+  };
+  const grid = document.getElementById('compGrid');
+  const cards = [
+    { title:'Bar Birsa Super League', desc:'Massima divisione', key:'div_a' },
+    { title:"Mamo’s B League", desc:'Seconda divisione', key:'div_b' },
+    { title:'T-Bakery Cup', desc:'Coppa stagionale', key:'cup_tbakery' },
+    { title:'Olympus Supercup', desc:'Supercoppa', key:'sup_olympus' }
+  ];
+  cards.forEach(c => {
+    const a = document.createElement('a');
+    a.className='comp-card';
+    a.href = mapping[c.title].link;
+    a.innerHTML = `<div class='logo-box'>${c.title.split(' ').map(w=>w[0]).slice(0,3).join('')}</div><h3>${c.title}</h3><p style='margin:0;font-size:13px;color:#475569;'>${c.desc}</p><span class='btn'>Apri</span>`;
+    grid.appendChild(a);
+  });
+})();
+</script>
+</body>
+</html>

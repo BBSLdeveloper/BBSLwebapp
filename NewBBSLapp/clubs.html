@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Club</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+<!-- Palette ruoli centralizzata in styles.css -->
+</head>
+<body>
+<header>
+  <h1>Club</h1>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="listone.html">Listone</a>
+    <a href="asta.html">Asta</a>
+    <a href="competizioni.html">Competizioni</a>
+  </nav>
+</header>
+<main>
+  <section class="hero fade-in" style="margin-top:0;">
+    <h1 style="font-size:36px;">Gestione Club</h1>
+    <p class="subtitle" style="max-width:820px;">Crea e mantieni i club, visualizza divisioni e competizioni. Monitora rapidamente roster, ingaggi e budget correnti.</p>
+    <div class="stat-grid" id="clubsHeroStats" style="margin-top:18px;">
+      <div class="stat-card"><h3>Club Totali</h3><div class="value" id="heroClubCount">-</div></div>
+      <div class="stat-card"><h3>Ingaggi Totali</h3><div class="value" id="heroWageTotal">-</div></div>
+      <div class="stat-card"><h3>Budget Totale</h3><div class="value" id="heroBudgetTotal">-</div></div>
+    </div>
+  </section>
+  <section class="panel">
+    <h2 class="border-accent">Divisioni</h2>
+    <div id="divisionsList"></div>
+  </section>
+  <section class="panel">
+    <h2 class="border-accent">Competizioni</h2>
+    <div id="competitionsList"></div>
+  </section>
+  <section class="panel">
+    <h2 class="border-accent">Nuovo Club</h2>
+    <form id="addClubForm" style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">
+      <input name="name" placeholder="Nome" required />
+      <input name="president" placeholder="Presidente" />
+      <input name="founded" placeholder="Anno fondazione" />
+      <input name="stadium" placeholder="Stadio" />
+      <input name="colors" placeholder="Colori (#hex,#hex)" />
+      <select name="divisionId" id="divisionSelect"><option value="">Divisione</option></select>
+      <button class="btn-secondary">Crea Club</button>
+    </form>
+  </section>
+  <section class="panel">
+    <h2 class="border-accent">Elenco Club</h2>
+    <div id="clubsList" class="cards"></div>
+  </section>
+</main>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData, saveData } from './src/js/storage.js';
+import { addClub, syncAllClubBudgets } from './src/js/model.js';
+import { announce, uiAlert } from './src/js/ui.js';
+(async () => {
+  await ensureAuth();
+  let data = await initData();
+  // Sync budgets
+  syncAllClubBudgets(data);
+  const orderIndex = (data.rolesOrder||[]).reduce((m,r,i)=>{m[r]=i;return m;},{});
+  const sortRoles = roles => roles.slice().sort((a,b)=> (orderIndex[a]??99)-(orderIndex[b]??99));
+  const roleClass = r => { if (r==='POR') return 'role-gk'; if (['B','DC','DD','DS'].includes(r)) return 'role-def'; if (['E','M','C'].includes(r)) return 'role-mid'; if (['W','T'].includes(r)) return 'role-wing'; if (['A','PC'].includes(r)) return 'role-att'; return 'role-mid'; };
+  const roleBadgesHTML = roles => `<span class='role-badges'>${sortRoles(roles).map(r=>`<span class=\"role-badge ${roleClass(r)}\">${r}</span>`).join('')}</span>`;
+  data.players.forEach(p=>{ if(Array.isArray(p.roles)) p.roles = sortRoles(p.roles); });
+  const divSel = document.getElementById('divisionSelect');
+  function refreshDivisionSelect() {
+    divSel.innerHTML = '<option value="">Divisione</option>';
+    (data.divisions||[]).forEach(d => { const o=document.createElement('option'); o.value=d.id; o.textContent=d.name; divSel.appendChild(o); });
+  }
+  const divisionsList = document.getElementById('divisionsList');
+  function renderDivisions() {
+    divisionsList.innerHTML='';
+    (data.divisions||[]).forEach(d => {
+      const div = document.createElement('div');
+      div.textContent = `${d.name} (Fiche iniziali: ${d.seasonBase} / Gennaio: ${d.winterBase}) Premi: ${d.prizes.join('-')}`;
+      divisionsList.appendChild(div);
+    });
+  }
+  const competitionsList = document.getElementById('competitionsList');
+  function renderCompetitions() {
+    competitionsList.innerHTML='';
+    (data.competitions||[]).forEach(c => {
+      const div = document.createElement('div');
+      div.textContent = `${c.name} [${c.type}] premio ${c.prize}`;
+      competitionsList.appendChild(div);
+    });
+  }
+  const list = document.getElementById('clubsList');
+  function badgeBudgetClass(val){ if(val>=300) return 'high'; if(val>=120) return 'mid'; return 'low'; }
+  function renderClubs() {
+    list.innerHTML = '';
+    let totalWage=0, totalBudget=0;
+    data.clubs.forEach(c => { totalWage += (c.wageTotal||0); totalBudget += (c.budget||0); });
+    document.getElementById('heroClubCount').textContent = data.clubs.length;
+    document.getElementById('heroWageTotal').textContent = totalWage;
+    document.getElementById('heroBudgetTotal').textContent = totalBudget;
+    data.clubs.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'club-card fade-in';
+      const [c1,c2] = c.colors || ['#222','#555'];
+      card.style.borderColor = c1;
+      const division = data.divisions.find(d=>d.id===c.divisionId);
+      const wagePerc = Math.min(100, Math.round((c.wageTotal||0)/110*100));
+      const rosterCount = c.roster.filter(r=>r.status==='active').length;
+      const rosterPerc = Math.min(100, Math.round(rosterCount/30*100));
+      card.innerHTML = `<h3 style="background:${c1};color:${c2};display:flex;justify-content:space-between;align-items:center;">`+
+        `<a href='club.html?id=${c.id}' style='color:${c2};text-decoration:none;'>${c.name}</a>`+
+        `</h3>`+
+        `<p style='margin:6px 0 10px;font-size:12px;'>${division?division.name:'-'} | Pres: ${c.president||'-'} | Fond: ${c.founded||'-'}</p>`+
+        `<div style='display:flex; flex-direction:column; gap:6px;'>`+
+        `<div style='display:flex;justify-content:space-between;font-size:11px;'><span>Rosa</span><span>${rosterCount}/30</span></div>`+
+        `<div class='mini-progress'><span style='width:${rosterPerc}%;'></span></div>`+
+        `<div style='display:flex;justify-content:space-between;font-size:11px;'><span>Ingaggi</span><span>${c.wageTotal}/110</span></div>`+
+        `<div class='mini-progress wage'><span style='width:${wagePerc}%;'></span></div>`+
+        `<div style='display:flex;justify-content:space-between;font-size:11px;'><span>Budget</span><span><span class='badge-budget ${'badge-budget '+badgeBudgetClass(c.budget||0)}'>${c.budget}</span></span></div>`+
+        `</div>`;
+      list.appendChild(card);
+    });
+  }
+  refreshDivisionSelect();
+  renderDivisions();
+  renderCompetitions();
+  renderClubs();
+  document.getElementById('addClubForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const colors = (fd.get('colors')||'').split(',').map(s=>s.trim()).filter(Boolean);
+    addClub(data, {
+      name: fd.get('name'),
+      president: fd.get('president'),
+      founded: fd.get('founded'),
+      stadium: fd.get('stadium'),
+      colors,
+      divisionId: fd.get('divisionId')||null
+    });
+    saveData(data);
+    e.target.reset();
+    renderClubs();
+    announce('Club creato');
+  });
+})();
+</script>
+</body>
+</html>

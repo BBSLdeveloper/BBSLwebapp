@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Club</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+<header>
+  <h1><a href="clubs.html" style="color:#2563eb;text-decoration:none;font-size:18px;" aria-label="Torna a elenco club">&larr; Club</a></h1>
+  <nav aria-label="Principale">
+    <a href="index.html">Home</a>
+    <a href="listone.html">Listone</a>
+    <a href="asta.html">Asta</a>
+    <a href="competizioni.html">Competizioni</a>
+  </nav>
+</header>
+<main>
+  <div id="clubHeader" aria-live="polite"></div>
+  <section class="panel" aria-labelledby="rosterTitle">
+    <h2 id="rosterTitle">Rosa Attuale</h2>
+    <table class="data-table table-compact contract-table" id="rosterTable" role="table" aria-describedby="rosterHelp">
+      <thead><tr role="row">
+        <th class="sortable" scope="col" data-sort="name">Giocatore</th>
+        <th class="sortable" scope="col" data-sort="roles">Ruoli</th>
+        <th class="sortable" scope="col" data-sort="quote">Quota firma</th>
+        <th class="sortable" scope="col" data-sort="original">Orig?</th>
+        <th class="sortable" scope="col" data-sort="years">Durata</th>
+        <th class="sortable" scope="col" data-sort="wage">Stip. annuo</th>
+        <th class="sortable" scope="col" data-sort="season0" id="seasonCol1"></th>
+        <th class="sortable" scope="col" data-sort="season1" id="seasonCol2"></th>
+        <th class="sortable" scope="col" data-sort="season2" id="seasonCol3"></th>
+        <th class="sortable" scope="col" data-sort="season3" id="seasonCol4"></th>
+        <th scope="col">Azioni</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <p id="rosterHelp" class="table-note">Clic sulle intestazioni per ordinare. Colonne stagione indicano ingaggio dovuto (50% se svincolato).</p>
+    <div class="released-block" id="releasedSection" data-aria-hidden="true" aria-live="polite">
+      <h3 style="margin-top:0;">Giocatori Svincolati</h3>
+      <table class="data-table table-compact contract-table" id="releasedTable" role="table"><thead><tr><th>Giocatore</th><th>Ruoli</th><th>Stip. attuale</th><th>Scadenza</th><th>Azioni</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+  <section class="panel" id="financeSection" aria-labelledby="financeTitle">
+    <h2 id="financeTitle">Storico Operazioni Finanziarie <select id="yearFilter" aria-label="Filtra per anno"><option value="">Tutte</option></select></h2>
+    <table class="data-table table-compact" id="txTable" role="table"><thead><tr><th>Data</th><th>Descrizione</th><th>Operazione</th><th>Saldo</th></tr></thead><tbody></tbody></table>
+  </section>
+</main>
+<div id="modalRoot" aria-live="assertive"></div>
+<script type="module">
+import { ensureAuth } from './src/js/auth.js';
+import { initData, saveData } from './src/js/storage.js';
+import { recalcClubWage, releasePlayer, editContract, deleteRosterEntry, currentSeasonYear, computeClubBudgetFromTransactions, syncAllClubBudgets, addFinancialTransaction, recomputeClubTransactions, normalizeTransactionsSchema } from './src/js/model.js';
+import { uiAlert, uiConfirm, openCustomModal, applyWageIntensity, wageCellHTML, announce, escapeHtml } from './src/js/ui.js';
+// --- Utility data formatting (mancante prima) ---
+function formatItDate(iso){ if(!iso) return ''; const parts = iso.split('-'); if(parts.length!==3) return iso; return parts[2]+'/'+parts[1]+'/'+parts[0]; }
+(async () => {
+  await ensureAuth();
+  let data = await initData();
+  normalizeTransactionsSchema(data);
+  syncAllClubBudgets(data);
+  const params = new URLSearchParams(location.search);
+  const clubId = params.get('id');
+  const club = data.clubs.find(c=>c.id===clubId);
+  if(!club){ document.body.innerHTML='<p>Club non trovato</p>'; return; }
+  club.budget = computeClubBudgetFromTransactions(club);
+  saveData(data);
+  const roleOrder = data.rolesOrder||[]; const orderIndex = roleOrder.reduce((m,r,i)=>{m[r]=i;return m;},{});
+  const sortRoles = roles => roles.slice().sort((a,b)=> (orderIndex[a]??99)-(orderIndex[b]??99));
+  const roleClass = r => { if (r==='POR') return 'role-gk'; if (['B','DC','DD','DS'].includes(r)) return 'role-def'; if (['E','M','C'].includes(r)) return 'role-mid'; if (['W','T'].includes(r)) return 'role-wing'; if (['A','PC'].includes(r)) return 'role-att'; return 'role-mid'; };
+  const roleBadgesHTML = roles => `<span class='role-badges'>${sortRoles(roles).map(r=>`<span class="role-badge ${roleClass(r)}" aria-label="Ruolo ${r}">${r}</span>`).join('')}</span>`;
+  function seasonHeaders() { const y=currentSeasonYear(); return [y,y+1,y+2,y+3]; }
+  const hdrYears = seasonHeaders();
+  ['seasonCol1','seasonCol2','seasonCol3','seasonCol4'].forEach((id,i)=>{ const el=document.getElementById(id); if(el){ el.textContent = hdrYears[i]; el.dataset.label = hdrYears[i]; }});
+  let rosterSort = { key: 'name', dir: 'asc' };
+  initSortableHeaders();
+  function inferAuctionPhaseFromDate(isoDate){
+    if(!isoDate) return null; const [y,m,d] = isoDate.split('-').map(n=>parseInt(n));
+    if(m===1 || (m===2 && d<=10)) return 'invernale';
+    if(m===7 || (m===8 && d<=15)) return 'estiva1';
+    if(m===8 && d>15 || m===9) return 'estiva2';
+    return null;
+  }
+  function migrateTransactions() {
+    if(!club.transactions) return;
+    const isLikelyAuctionPurchase = (desc='') => {
+      if(!/^Acquisto\s/i.test(desc)) return false; const low = desc.toLowerCase();
+      if(low.includes(' da ')) return false;
+      if(/\b(scambio|prestito|riscatto|cessione|bonus|budget)\b/i.test(desc)) return false;
+      return /^Acquisto\s+[A-Za-zÀ-ÖØ-öø-ÿ' .-]+$/i.test(desc.trim());
+    };
+    let changed=false;
+    club.transactions.forEach(t=>{
+      if(!t.id) { t.id = 'tx_'+Math.random().toString(36).slice(2,10); changed=true; }
+      if(!t.meta) t.meta={};
+      if(!t.meta.type && /^Acquisto\s/i.test(t.description||'')) { t.meta.type='acquisto'; changed=true; }
+      if(t.meta.type==='acquisto' && !t.meta.auction && isLikelyAuctionPurchase(t.description||'')) {
+        const phase = inferAuctionPhaseFromDate(t.date);
+        if(phase){ t.meta.auction = { phase, year: parseInt(t.date.slice(0,4)), inferred:true }; changed=true; }
+      }
+      if(t.meta?.auction && !isLikelyAuctionPurchase(t.description||'')) { delete t.meta.auction; changed=true; }
+      if(t.meta?.auction && t.meta.type!=='acquisto') { delete t.meta.auction; changed=true; }
+    });
+    if(changed) { recomputeClubTransactions(club); saveData(data); }
+  }
+  migrateTransactions();
+  seedPolentaHistory();
+  renderFinance();
+  function initSortableHeaders() {
+    const ths = document.querySelectorAll('#rosterTable thead th.sortable');
+    ths.forEach(th => {
+      if(!th.dataset.label) th.dataset.label = th.textContent.trim();
+      th.tabIndex=0; th.setAttribute('role','columnheader');
+      th.addEventListener('click', () => { const key = th.dataset.sort; if(rosterSort.key === key) { rosterSort.dir = rosterSort.dir==='asc' ? 'desc' : 'asc'; } else { rosterSort.key = key; rosterSort.dir='asc'; } updateHeaderSortIndicators(); renderRoster(); announce('Ordinato per '+th.dataset.label+' '+(rosterSort.dir==='asc'?'crescente':'decrescente')); });
+      th.addEventListener('keydown', e=> { if(e.key==='Enter' || e.key===' ') { e.preventDefault(); th.click(); } });
+    });
+    updateHeaderSortIndicators();
+  }
+  function updateHeaderSortIndicators() {
+    const ths = document.querySelectorAll('#rosterTable thead th.sortable');
+    ths.forEach(th => { th.classList.remove('asc','desc'); if(th.dataset.sort === rosterSort.key) th.classList.add(rosterSort.dir); th.setAttribute('aria-sort', th.dataset.sort===rosterSort.key ? (rosterSort.dir==='asc'?'ascending':'descending') : 'none'); });
+  }
+  function buildHeader() {
+    const h = document.getElementById('clubHeader');
+    const [c1,c2] = club.colors?.length?club.colors:['#334','#667'];
+    const gradient = `linear-gradient(100deg, ${c1}, ${c2})`;
+    let logoHtml='';
+    if(club.logo){
+      if(/^data:/i.test(club.logo)) { logoHtml = `<img src="${club.logo}" alt="Logo ${club.name}" style="max-width:100%;max-height:100%;object-fit:contain;"/>`; }
+      else { logoHtml = `<img src="${club.logo}" alt="Logo ${club.name}" style="max-width:100%;max-height:100%;object-fit:contain;" onerror="this.src='media/BBSL_Logo.png'"/>`; }
+    } else { logoHtml = `<span aria-hidden="true">${club.name.charAt(0).toUpperCase()}</span>`; }
+    const trophies = club.trophies||[];
+    const trophyIcons = trophies.map(t=>`<div class='trophy'><svg viewBox='0 0 24 24' aria-hidden='true'><path d='M5 3h14v3h3v4c0 3.31-2.69 6-6 6-.65 0-1.27-.1-1.85-.29L12 19l-2.15-3.29A5.978 5.978 0 0 1 8 16c-3.31 0-6-2.69-6-6V6h3V3Zm2 3v4c0 2.21 1.79 4 4 4s4-1.79 4-4V6H7Z'/></svg><span>${t.season||''}</span></div>`).join('');
+    const rosterCount = club.roster.filter(r=>r.status==='active').length;
+    const rosterPerc = Math.min(100, Math.round(rosterCount/30*100));
+    const wagePerc = Math.min(100, Math.round((club.wageTotal||0)/110*100));
+    const budgetCls = club.budget>=300?'high': (club.budget>=120?'mid':'low');
+    h.innerHTML = `<section class='hero club-hero fade-in' style='background:${gradient};'>`+
+      `<div class='club-hero-inner'>`+
+        `<div class='club-hero-logo' aria-label='Logo club'>${logoHtml}</div>`+
+        `<div class='info' style='flex:1;min-width:240px;'>`+
+          `<h1 style='margin:0 0 4px;font-size:40px;'>${club.name} <span class='trophies' aria-label='Trofei'>${trophyIcons}</span></h1>`+
+          `<div class='club-hero-meta'>`+
+            `<span><strong>Presidente:</strong> ${club.president||'-'}</span>`+
+            `<span><strong>Fondazione:</strong> ${club.founded||'-'}</span>`+
+            `<span><strong>Stadio:</strong> ${club.stadium||'-'}</span>`+
+            `<span><strong>Città:</strong> ${club.city||'-'}</span>`+
+          `</div>`+
+          `<div class='club-hero-metrics'>`+
+            `<div class='metric-block'><strong>Rosa</strong><div class='mini-progress'><span style='width:${rosterPerc}%;'></span></div><div style='margin-top:4px;'>${rosterCount}/30</div></div>`+
+            `<div class='metric-block'><strong>Ingaggi</strong><div class='mini-progress wage'><span style='width:${wagePerc}%;'></span></div><div style='margin-top:4px;'>${club.wageTotal}/110</div></div>`+
+            `<div class='metric-block'><strong>Budget</strong><div style='margin-top:2px;'><span class='badge-budget ${budgetCls}'>${club.budget}</span></div></div>`+
+          `</div>`+
+        `</div>`+
+        `<div style='display:flex;flex-direction:column;gap:8px;align-items:flex-end;'>`+
+          `<button class='btn-outline btn-sm' id='editClubBtn' aria-label='Modifica dati club'>Modifica Club</button>`+
+        `</div>`+
+      `</div>`+
+    `</section>`;
+    document.getElementById('editClubBtn').addEventListener('click', openEditClubModal);
+  }
+  function wageForSeason(entry, year) {
+    if(entry.status==='active' && year>=entry.startSeason && year<=entry.endSeason) return entry.wage;
+    if(entry.status==='released' && entry.releaseStartSeason && year>=entry.releaseStartSeason && year<=entry.endSeason) return Math.round(entry.wage*0.5);
+    return '';
+  }
+  function formatWageDisplay(val) {
+    if(val===null || val===undefined || val==='') return '';
+    const rounded = Math.round(Number(val)*1000)/1000; return rounded.toFixed(3).replace(/\.0+$/,'').replace(/\.(\d*?)0+$/,'.$1');
+  }
+  function renderRoster() {
+    recalcClubWage(club, data); buildHeader();
+    const tbody = document.querySelector('#rosterTable tbody');
+    if(!tbody) return; tbody.innerHTML='';
+    const rows = club.roster.filter(r=>r.status==='active').map(r=>({ r, p: data.players.find(pl=>pl.id===r.playerId) })).filter(x=>x.p);
+    rows.sort((a,b)=> rosterComparator(a,b));
+    rows.forEach(({r,p}) => {
+      const tr = document.createElement('tr');
+      const badge = r.original?`<span class='badge-original tooltip' aria-label='Giocatore originale'><span>ORIG</span><span class='tooltip-content'>Originale</span></span>`:`<span class='badge-duplicate tooltip' aria-label='Giocatore duplicato'><span>DUP</span><span class='tooltip-content'>Duplicato</span></span>`;
+      tr.innerHTML = `<td>${p.name}</td><td>${roleBadgesHTML(p.roles)}</td><td>${r.originalQuote}</td><td>${badge}</td><td>${r.contractYears}</td><td class='wage-cell'>${wageCellHTML(r.wage)}</td>`+
+        `${hdrYears.map(y=>`<td class='wage-cell'>${wageCellHTML(wageForSeason(r,y))}</td>`).join('')}`+
+        `<td class='actions'>`+
+          `<button class='icon-btn btn-sm' data-edit='${r.playerId}' aria-label='Modifica contratto ${p.name}'>✏️</button>`+
+          `<button class='icon-btn btn-sm' data-release='${r.playerId}' aria-label='Svincola ${p.name}'>Svincola</button>`+
+          `<button class='icon-btn btn-sm danger' data-delete='${r.playerId}' aria-label='Elimina ${p.name}'>❌</button>`+
+        `</td>`;
+      tbody.appendChild(tr);
+    });
+    const rel = club.roster.filter(r=>r.status==='released');
+    const relRoot = document.getElementById('releasedSection');
+    if(relRoot){
+      if(rel.length) {
+        relRoot.dataset.ariaHidden='false';
+        const rtbody=document.querySelector('#releasedTable tbody'); if(rtbody) { rtbody.innerHTML=''; }
+        rel.forEach(r=>{ const p=data.players.find(pl=>pl.id===r.playerId); if(!p) return; const half = Math.round(r.wage*0.5); if(rtbody) rtbody.innerHTML += `<tr><td>${p.name}</td><td>${roleBadgesHTML(p.roles)}</td><td class='wage-cell'>${wageCellHTML(half)}</td><td>${r.endSeason}</td><td><button class='icon-btn btn-sm danger' data-delete='${r.playerId}' aria-label='Rimuovi record svincolo ${p.name}'>❌</button></td></tr>`; });
+        if(rtbody) applyWageIntensity(rtbody);
+      } else { relRoot.dataset.ariaHidden='true'; }
+    }
+    applyWageIntensity(tbody);
+  }
+  function rosterComparator(a,b) {
+    const dir = rosterSort.dir === 'asc' ? 1 : -1; function num(v){ return typeof v==='number' ? v : (v===''? -Infinity : Number(v)); }
+    const key = rosterSort.key; const seasonsMap = { season0:0, season1:1, season2:2, season3:3 }; let va,vb;
+    switch(key) {
+      case 'name': va=a.p.name.toLowerCase(); vb=b.p.name.toLowerCase(); return va.localeCompare(vb)*dir;
+      case 'roles': va=sortRoles(a.p.roles).join(','); vb=sortRoles(b.p.roles).join(','); return va.localeCompare(vb)*dir;
+      case 'quote': va=a.r.originalQuote; vb=b.r.originalQuote; return (va-vb)*dir;
+      case 'original': va=a.r.original?1:0; vb=b.r.original?1:0; return (vb-va)*dir;
+      case 'years': va=a.r.contractYears; vb=b.r.contractYears; return (va-vb)*dir;
+      case 'wage': va=a.r.wage; vb=b.r.wage; return (va-vb)*dir;
+      default:
+        if(key in seasonsMap) { const idx=seasonsMap[key]; const y=hdrYears[idx]; va=wageForSeason(a.r,y)||''; vb=wageForSeason(b.r,y)||''; return (num(va)-num(vb))*dir; }
+    }
+    return 0;
+  }
+  document.getElementById('rosterTable').addEventListener('click', async e => {
+    const pid = e.target.dataset.release || e.target.dataset.edit || e.target.dataset.delete; if(!pid) return;
+    if(e.target.dataset.release) { const season = currentSeasonYear(); try { releasePlayer(data, club.id, pid, season); saveData(data); renderRoster(); announce('Giocatore svincolato'); } catch(err){ uiAlert(err.message); } }
+    else if(e.target.dataset.edit) { openEditContractModal(pid); }
+    else if(e.target.dataset.delete) { if(await uiConfirm('Eliminare dalla rosa?')) { deleteRosterEntry(data, club.id, pid); saveData(data); renderRoster(); announce('Giocatore eliminato dalla rosa'); } }
+  });
+  document.getElementById('releasedSection').addEventListener('click', async e => { const pid = e.target.dataset.delete; if(!pid) return; if(await uiConfirm('Eliminare definitivamente?')) { deleteRosterEntry(data, club.id, pid); saveData(data); renderRoster(); announce('Record svincolo eliminato'); } });
+  function openEditClubModal() {
+    const palette = ['#003366','#004c99','#0077b6','#0f766e','#15803d','#a21caf','#be123c','#c48c00','#111827','#6d28d9','#dc2626','#2563eb','#16a34a','#64748b'];
+    let sel = [...(club.colors||[])];
+    const body = `<form id='editClubForm' class='form-vertical' style='display:flex;flex-direction:column;gap:8px;'>
+      <label>Nome <input name='name' value='${escapeHtml(club.name)}' required></label>
+      <label>Presidente <input name='president' value='${escapeHtml(club.president||'')}'></label>
+      <label>Fondazione <input name='founded' value='${escapeHtml(club.founded||'')}'></label>
+      <label>Stadio <input name='stadium' value='${escapeHtml(club.stadium||'')}'></label>
+      <label>Città <input name='city' value='${escapeHtml(club.city||'')}'></label>
+      <label>Percorso Logo Statico <input name='logoPath' placeholder='media/nomefile.webp' value='${/^data:/i.test(club.logo)?'':escapeHtml(club.logo||'')}'></label>
+      <small class='text-muted' style='font-size:11px;'>Inserisci path relativo (media/). I dataURL legacy verranno rimossi.</small>
+      <div><strong style='font-size:12px;'>Colori</strong><div id='colorGrid' class='color-picker-grid' style='margin-top:4px;'></div></div>
+    </form>`;
+    const { modalEl, whenClosed } = openCustomModal({ title:'Modifica Club', bodyHTML: body, actions:[{ key:'cancel', label:'Annulla', variant:'btn-outline', cancel:true }, { key:'save', label:'Salva' }] });
+    const grid = modalEl.querySelector('#colorGrid');
+    const paletteRender = () => { grid.innerHTML=''; palette.forEach(col => { const div=document.createElement('div'); div.className='color-swatch'+(sel.includes(col)?' selected':''); div.style.background=col; div.tabIndex=0; div.setAttribute('role','button'); div.addEventListener('click', ()=>{ if(sel.includes(col)) sel=sel.filter(c=>c!==col); else if(sel.length<2) sel.push(col); else sel[1]=col; paletteRender(); }); div.addEventListener('keydown',e=>{ if(['Enter',' '].includes(e.key)){ e.preventDefault(); div.click(); }}); grid.appendChild(div); }); };
+    paletteRender();
+    whenClosed.then(res => {
+      if(res.action!=='save') return;
+      const fd = res.formData;
+      club.name = fd.get('name').trim();
+      club.president = fd.get('president').trim();
+      club.founded = fd.get('founded').trim();
+      club.stadium = fd.get('stadium').trim();
+      club.city = fd.get('city').trim();
+      if(sel.length) club.colors = sel;
+      const logoPath = (fd.get('logoPath')||'').trim();
+      if(logoPath) club.logo = logoPath; else if(!/^data:/i.test(club.logo)) club.logo='';
+      saveData(data);
+      renderRoster(); announce('Club aggiornato');
+    });
+  }
+  function openEditContractModal(playerId) {
+    const entry = club.roster.find(r=>r.playerId===playerId); if(!entry) return; const player = data.players.find(p=>p.id===playerId); if(!player) return;
+    const body = `<form id='editContractForm' style='display:flex;flex-direction:column;gap:8px;'>
+      <label>Quota firma <input name='quote' type='number' value='${entry.originalQuote}' required></label>
+      <label>Durata (1-4) <input name='years' type='number' min='1' max='4' value='${entry.contractYears}' required></label>
+      <label>Stagione inizio <input name='startSeason' type='number' value='${entry.startSeason}' required></label>
+    </form>`;
+    openCustomModal({ title:`Contratto - ${escapeHtml(player.name)}`, bodyHTML: body, actions:[{ key:'cancel', label:'Annulla', variant:'btn-outline', cancel:true }, { key:'save', label:'Salva' }] }).whenClosed.then(res => {
+      if(res.action!=='save') return; const fd = res.formData; try { editContract(data, club.id, playerId, fd.get('quote'), fd.get('startSeason'), fd.get('years')); saveData(data); renderRoster(); announce('Contratto aggiornato'); } catch(err){ uiAlert(err.message); }});
+  }
+  function seedPolentaHistory() {
+    club.transactions = club.transactions || [];
+    if (club.transactions.length) return;
+    const today = new Date().toISOString().slice(0,10);
+    const base = typeof club.budget==='number'?club.budget:0;
+    const tx = { id:'tx_seed_'+Math.random().toString(36).slice(2,8), date:today, description:'Saldo iniziale', prev:base, sign:'+', amount:0, delta:0, after:base, meta:{ seed:true } };
+    club.transactions.push(tx);
+    recomputeClubTransactions(club);
+    saveData(data);
+  }
+  function renderFinance() {
+    const yearSel = document.getElementById('yearFilter');
+    if (!yearSel) return;
+    const yearsAlready = new Set(Array.from(yearSel.options).map(o=>o.value));
+    const txs = (club.transactions||[]).slice().sort((a,b)=> a.date < b.date ? -1 : 1);
+    txs.forEach(t=> { if(t.date) { const y=t.date.slice(0,4); if(y && !yearsAlready.has(y)) { const opt=document.createElement('option'); opt.value=y; opt.textContent=y; yearSel.appendChild(opt); yearsAlready.add(y); } } });
+    if(!document.getElementById('addTxBtn')) {
+      const h2 = document.getElementById('financeTitle');
+      const btn = document.createElement('button'); btn.id='addTxBtn'; btn.className='btn-sm'; btn.type='button'; btn.style.marginLeft='8px'; btn.textContent='Nuova Operazione'; btn.addEventListener('click', () => openEditTransactionModal()); h2.appendChild(btn);
+    }
+    if(!document.getElementById('astaGroupsBtn')) {
+      const h2 = document.getElementById('financeTitle');
+      const btn2 = document.createElement('button'); btn2.id='astaGroupsBtn'; btn2.className='btn-outline btn-sm'; btn2.type='button'; btn2.style.marginLeft='6px'; btn2.textContent='Gruppi Asta'; btn2.addEventListener('click', ()=> openAstaGroupModal()); h2.appendChild(btn2);
+    }
+    if(!document.getElementById('importHistBtn')) {
+      const h2 = document.getElementById('financeTitle');
+      const btn3 = document.createElement('button'); btn3.id='importHistBtn'; btn3.className='btn-outline btn-sm'; btn3.type='button'; btn3.style.marginLeft='6px'; btn3.textContent='Import Storico'; btn3.addEventListener('click', ()=> openImportHistoricalModal()); h2.appendChild(btn3);
+    }
+    const filterYear = yearSel.value;
+    const tbody = document.querySelector('#txTable tbody');
+    if(!tbody) return;
+    tbody.innerHTML='';
+    let filtered = txs;
+    if(filterYear) filtered = filtered.filter(t=> t.date && t.date.startsWith(filterYear));
+    if(!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan='4' style='text-align:center;font-size:12px;color:#666;'>Nessuna operazione${filterYear? ' per '+filterYear:''}</td></tr>`;
+      return;
+    }
+    filtered.forEach(t => {
+      const tr = document.createElement('tr');
+      tr.dataset.txId = t.id;
+      const opStr = `${t.sign==='-'?'-':'+'} ${Number(t.amount).toFixed(2)}`;
+      tr.innerHTML = `<td>${formatItDate(t.date)}</td><td>${escapeHtml(t.description||'')}</td><td>${opStr}</td><td>${t.after}</td>`;
+      tr.tabIndex=0; tr.setAttribute('role','row');
+      tr.addEventListener('click', ()=> openEditTransactionModal(t.id));
+      tr.addEventListener('keydown', e=> { if(e.key==='Enter' || e.key===' ') { e.preventDefault(); openEditTransactionModal(t.id); }});
+      tbody.appendChild(tr);
+    });
+  }
+  function deleteTransaction(txId) {
+    const idx = (club.transactions||[]).findIndex(t=>t.id===txId);
+    if(idx===-1) return false;
+    club.transactions.splice(idx,1);
+    recomputeClubTransactions(club);
+    saveData(data);
+    renderFinance();
+    announce('Operazione eliminata');
+    return true;
+  }
+  function openEditTransactionModal(txId){
+    const editing = txId ? (club.transactions||[]).find(t=>t.id===txId) : null;
+    const body = `<form id='txForm' style='display:flex;flex-direction:column;gap:8px;'>
+      <label>Data <input name='date' type='date' value='${editing?editing.date:new Date().toISOString().slice(0,10)}' required></label>
+      <label>Descrizione <input name='description' value='${editing?escapeHtml(editing.description):''}' required></label>
+      <label>Segno <select name='sign'><option value='+' ${!editing || editing.sign==='+'?'selected':''}>+</option><option value='-' ${editing && editing.sign==='-'?'selected':''}>-</option></select></label>
+      <label>Importo <input name='amount' type='number' step='0.01' value='${editing?editing.amount:''}' required></label>
+    </form>`;
+    const actions = [];
+    if(editing) actions.push({ key:'delete', label:'Elimina', variant:'btn-outline danger' });
+    actions.push({ key:'cancel', label:'Annulla', variant:'btn-outline', cancel:true });
+    actions.push({ key:'save', label:'Salva' });
+    openCustomModal({ title: `${editing?'Modifica':'Nuova'} Operazione`, bodyHTML: body, actions }).whenClosed.then(async res => {
+      if(res.action==='cancel') return;
+      if(res.action==='delete' && editing) {
+        if(await uiConfirm('Eliminare operazione?')) { deleteTransaction(editing.id); renderFinance(); renderRoster(); }
+        return;
+      }
+      if(res.action==='save') {
+        const fd = res.formData;
+        const date = fd.get('date');
+        const description = (fd.get('description')||'').trim();
+        const sign = fd.get('sign');
+        const amount = Number(fd.get('amount'));
+        if(!description){ uiAlert('Descrizione obbligatoria'); return; }
+        if(isNaN(amount)||amount<=0){ uiAlert('Importo > 0'); return; }
+        if(editing){
+          editing.date=date; editing.description=description; editing.sign=sign; editing.amount=amount;
+          recomputeClubTransactions(club); saveData(data); announce('Operazione aggiornata');
+        } else {
+          addFinancialTransaction(data, club.id, { description, sign, amount }); announce('Operazione aggiunta');
+        }
+        renderFinance(); renderRoster();
+      }
+    });
+  }
+  // --- Storico: importazione bulk ---
+  function simpleIdHash(str){ let h=0; for(let i=0;i<str.length;i++){ h=(h*31 + str.charCodeAt(i))>>>0; } return h.toString(36); }
+  async function ensureXlsxLib(){
+    if(window.XLSX) return;
+    await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'; s.onload=()=>res(); s.onerror=()=>rej(new Error('Impossibile caricare libreria XLSX')); document.head.appendChild(s); });
+  }
+  function convertAnyDateToISO(val){
+    if(!val) return '';
+    if(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(val)) return val; // already ISO
+    if(/^[0-9]{2}\/[0-9]{2}\/[0-9]{4}$/.test(val)){ const [d,m,y]=val.split('/'); return `${y}-${m}-${d}`; }
+    return val; // fallback
+  }
+  function parseOperazioneExpr(expr){
+    if(!expr) return null; const clean = (''+expr).replace(/\s+/g,'');
+    const m = clean.match(/^([0-9]+)([+-])([0-9]+)$/); // prev sign value (value = amount OR after depending on sign logic?)
+    if(!m) return null; const prev = Number(m[1]); const sign = m[2]; const val = Number(m[3]); return { prev, sign, raw: val };
+  }
+  function xlsxFileToCSV(file){
+    return ensureXlsxLib().then(()=> new Promise((resolve,reject)=>{
+      const fr = new FileReader();
+      fr.onload = e => { try { const data = new Uint8Array(e.target.result); const wb = XLSX.read(data,{type:'array'}); const sheetName = wb.SheetNames[0]; const ws = wb.Sheets[sheetName]; const json = XLSX.utils.sheet_to_json(ws,{defval:''});
+        const rows = json.map(r=>{ const lower={}; Object.keys(r).forEach(k=> lower[k.toLowerCase()] = r[k]);
+          let date = lower.date || lower.data || ''; date = convertAnyDateToISO(date);
+          let description = lower.description || lower.descrizione || '';
+            let sign = (lower.sign || lower.segno || '').toString();
+            let amount = lower.amount || lower.importo || '';
+          // Se formato Operazione presente (prev±amount) e mancano sign/amount normali
+          if(!sign && !amount && lower.operazione){ const parsed = parseOperazioneExpr(lower.operazione); if(parsed){ sign = parsed.sign; amount = parsed.raw; } }
+          return { date, description, sign, amount };
+        });
+        const header = 'date,description,sign,amount';
+        const csvRows = rows.map(r=> [r.date, r.description, r.sign, r.amount].map(v=> (v||'').toString().replace(/"/g,'""')).join(','));
+        resolve(header+'\n'+csvRows.join('\n')); } catch(err){ reject(err); } };
+      fr.onerror = () => reject(new Error('Lettura file fallita'));
+      fr.readAsArrayBuffer(file);
+    }));
+  }
+  // Splitter CSV/TSV robusto con gestione di virgolette
+  function splitDelimitedLine(line, delim){
+    const out=[]; let cur=''; let inQuotes=false; for(let i=0;i<line.length;i++){ const ch=line[i];
+      if(ch==='"') { if(inQuotes && line[i+1]==='"'){ cur+='"'; i++; } else { inQuotes=!inQuotes; } continue; }
+      if(!inQuotes && ch===delim){ out.push(cur); cur=''; continue; }
+      cur+=ch;
+    }
+    out.push(cur);
+    return out;
+  }
+  function parseHistoricalRaw(raw){
+    const errors=[]; const warnings=[]; let rows=[];
+    if(!raw || !raw.trim()) { errors.push('Nessun dato'); return { rows:[], errors, warnings }; }
+    if(raw.trim().startsWith('[')) {
+      try { const arr = JSON.parse(raw); if(!Array.isArray(arr)) { errors.push('JSON non è un array'); } else { rows = arr; } } catch(e){ errors.push('JSON non valido'); }
+    } else { // CSV
+      const lines = raw.split(/\r?\n/).map(l=> l.replace(/[\uFEFF\u200B]/g,'')).filter(l=>l.trim());
+      if(!lines.length){ errors.push('CSV vuoto'); return { rows:[], errors, warnings }; }
+      let delim = ','; if(lines[0].split(',').length < 2 && lines[0].includes(';')) delim=';'; else if(lines[0].split(',').length<2 && lines[0].includes('\t')) delim='\t';
+      const headerParts = splitDelimitedLine(lines[0], delim).map(h=>h.replace(/^[\uFEFF]/,'').trim().toLowerCase());
+      console.log('[ImportStorico] Header rilevato:', headerParts, 'delim:', JSON.stringify(delim));
+      const header = headerParts;
+      const idx = (name)=> header.indexOf(name);
+      const di = idx('date')!==-1?idx('date'):idx('data');
+      const descI = idx('description')!==-1?idx('description'):idx('descrizione');
+      let signI= idx('sign'); if(signI===-1) signI = idx('segno');
+      let amountI = idx('amount'); if(amountI===-1) amountI = idx('importo');
+      const opI = idx('operazione');
+      const saldoI = idx('saldo');
+      if(di===-1||descI===-1){ errors.push('Mancano colonne data/descrizione'); return { rows:[], errors, warnings }; }
+      const needsOpParse = opI!==-1 && (signI===-1 || amountI===-1);
+      // Heuristica: formato italiano Data;Descrizione;;Operazione;Saldo dove la colonna "sign" contiene in realtà l'espressione prev±amount e la colonna "amount" contiene il saldo finale
+      let opInSignExpr=false;
+      if(!needsOpParse && opI===-1 && signI!==-1 && amountI!==-1){
+        let exprCount=0; let checked=0; for(let i=1;i<Math.min(lines.length,8);i++){ const partsTest = splitDelimitedLine(lines[i], delim); if(partsTest.length<=signI) continue; const cand = (partsTest[signI]||'').trim(); if(!cand) continue; checked++; if(/^[0-9]+\s*[+-]\s*[0-9]+$/.test(cand)) exprCount++; }
+        if(checked && exprCount && exprCount/checked >= 0.5) { opInSignExpr=true; console.log('[ImportStorico] Rilevato formato Operazione in colonna sign e saldo in colonna amount'); }
+      }
+      for(let i=1;i<lines.length;i++){
+        const parts = splitDelimitedLine(lines[i], delim);
+        if(i<=3) console.log('[ImportStorico] Line', i, parts);
+        if(parts.length < Math.max(di, descI, signI, amountI, opI, saldoI)+1){ warnings.push(`Riga ${i}: colonne insufficienti (trovate ${parts.length})`); }
+        if(!parts.length) continue;
+        let date = (parts[di]||'').trim(); date = convertAnyDateToISO(date);
+        let description = (parts[descI]||'').trim();
+        let sign = signI!==-1 ? (parts[signI]||'').trim() : '';
+        let amountTxt = amountI!==-1 ? (parts[amountI]||'').trim() : '';
+        let prevParsed = null;
+        if(needsOpParse){ const opExpr = (parts[opI]||'').trim(); const parsed = parseOperazioneExpr(opExpr); if(parsed){
+            sign = parsed.sign;
+            const amount = parsed.raw; amountTxt = amount.toString(); prevParsed = parsed.prev;
+          } else { if(opExpr) { errors.push(`Riga ${i}: operazione non valida (${opExpr})`); } continue; } }
+        else if(opInSignExpr){
+          const expr = sign; const parsed = parseOperazioneExpr(expr); if(parsed){ sign = parsed.sign; amountTxt = parsed.raw.toString(); prevParsed = parsed.prev; }
+          else { errors.push(`Riga ${i}: espressione operazione non valida (${expr})`); continue; }
+          // In questo caso amountTxt originale era il Saldo finale, lo conserviamo in saldoAfterTxt per eventuali futuri controlli coerenza
+        }
+        const saldoAfterTxt = saldoI!==-1 ? (parts[saldoI]||'').trim() : (opInSignExpr ? amountTxt : '');
+        rows.push({ date, description, sign, amount: amountTxt, prevParsed, saldoAfterTxt, __line:i });
+      }
+    }
+    return { rows, errors, warnings };
+  }
+  function normalizeHistoricalRows(rawRows){
+    const cleaned=[]; const errors=[]; const warnings=[];
+    rawRows.forEach((r,idx)=>{
+      const line = r.__line || idx+1;
+      const date = (r.date||'').trim(); const description=(r.description||'').trim(); const sign=(r.sign||'').trim(); let amountRaw = (r.amount!==undefined?r.amount:'').toString().trim();
+      if(!date||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)) { errors.push(`Riga ${line}: data mancante o invalida`); return; }
+      if(!description){ errors.push(`Riga ${line}: descrizione mancante`); return; }
+      if(sign!=='+' && sign!=='-'){ errors.push(`Riga ${line}: sign deve essere + o -`); return; }
+      amountRaw = amountRaw.replace(',', '.');
+      const amount = Number(amountRaw);
+      if(!amount || amount<=0){ errors.push(`Riga ${line}: amount non valido`); return; }
+      cleaned.push({ date, description, sign, amount: Math.round(amount*100)/100, prevParsed: r.prevParsed, order: idx });
+    });
+    // Mantieni ordine originale (nessun sort alfabetico che alteri sequenza stessa data)
+    cleaned.sort((a,b)=> a.date===b.date ? a.order - b.order : (a.date<b.date?-1:1));
+    return { cleaned, errors, warnings };
+  }
+  function buildHistoricalTransactions(cleaned, { startingBalance=undefined, existingIds=new Set() }={}){
+    // Se startingBalance non fornito e la prima riga ha prevParsed, usalo
+    if(startingBalance===undefined && cleaned.length && cleaned[0].prevParsed!=null){ startingBalance = cleaned[0].prevParsed; }
+    if(startingBalance===undefined) startingBalance = 0;
+    let balance = startingBalance; const txs=[]; let newCount=0; let duplicate=0;
+    cleaned.forEach(r=>{
+      // Se r.prevParsed presente e diverso dal balance corrente, riallinea (assumiamo fonte verità file)
+      if(r.prevParsed!=null && r.prevParsed!==balance){ balance = r.prevParsed; }
+      const prev = balance; const delta = r.sign==='-'? -r.amount : r.amount; const after = prev + delta; balance = after;
+      const id = 'tx_'+simpleIdHash(`${r.date}|${r.description}|${r.sign}|${r.amount.toFixed(2)}`);
+      if(existingIds.has(id)) { duplicate++; return; }
+      const tx = { id, date:r.date, description:r.description, prev, sign:r.sign, amount:r.amount, delta, after, meta:{} };
+      txs.push(tx); newCount++;
+    });
+    return { txs, finalBalance: balance, newCount, duplicate, startingBalance };
+  }
+  function openImportHistoricalModal(){
+    const body = `<form id='histImportForm' style='display:flex;flex-direction:column;gap:8px;'>
+      <p style='margin:0;font-size:12px;'>Incolla dati (Excel/CSV) formato colonne: Data;Descrizione;...;Operazione;Saldo oppure schema date,description,sign,amount.</p>
+      <textarea name='raw' id='histRaw' style='min-height:160px;font-family:monospace;' required></textarea>
+      <div style='display:flex;flex-direction:column;gap:4px;'>
+        <label style='font-size:12px;'>Carica file (.xlsx/.xls/..csv)
+          <input type='file' id='histFile' accept='.xlsx,.xls,.csv' style='margin-top:4px;'>
+        </label>
+      </div>
+      <small style='font-size:11px;color:#555;'>Operazione es: 600-598 (prev - spesa) oppure 2+10 (prev + ricavo). Il Saldo finale viene ricalcolato; quello nel file serve solo per controllo.</small>
+    </form>`;
+    openCustomModal({ title:'Import Storico', bodyHTML: body, actions:[{ key:'cancel', label:'Annulla', variant:'btn-outline', cancel:true }, { key:'analyze', label:'Analizza' }] }).whenClosed.then(res => {
+      if(res.action!=='analyze') return;
+      const raw = res.formData.get('raw');
+      if(!raw || !raw.trim()) { uiAlert('Textarea vuota: incolla o carica file prima di Analizza'); return; }
+      const pr = parseHistoricalRaw(raw);
+      if(pr.errors.length){ uiAlert('Errori parsing: '+pr.errors.slice(0,3).join('; ')); return; }
+      const norm = normalizeHistoricalRows(pr.rows);
+      if(norm.errors.length){ uiAlert('Errori: '+norm.errors.slice(0,5).join(' | ')); return; }
+      const existingIds = new Set((club.transactions||[]).map(t=>t.id));
+      // startingBalance: se esiste seed prendi suo after, altrimenti ultimo after
+      let startingBalance = 0;
+      const seed = (club.transactions||[]).find(t=>t.meta?.seed);
+      if(seed) startingBalance = seed.after; else if(club.transactions && club.transactions.length){ startingBalance = club.transactions[0].prev || 0; }
+      const build = buildHistoricalTransactions(norm.cleaned, { startingBalance, existingIds });
+      const summary = `<div style='max-height:50vh;overflow:auto;'><p style='font-size:12px;margin-top:0;'>Righe valide: ${norm.cleaned.length}<br>Nuove: ${build.newCount} - Duplicate ignorate: ${build.duplicate}<br>Saldo iniziale rilevato: ${build.startingBalance}<br>Saldo finale previsto: ${build.finalBalance}</p>
+        <label style='display:flex;align-items:center;gap:4px;font-size:12px;'><input type='checkbox' id='overwriteAll'> Sovrascrivi tutte le operazioni esistenti</label>
+        <p style='font-size:11px;color:#555;'>Sovrascrivi rimuove tutte le transazioni (backup salvato). Merge aggiunge solo nuove.</p></div>`;
+      openCustomModal({ title:'Conferma Import', bodyHTML: summary, actions:[{ key:'cancel', label:'Annulla', variant:'btn-outline', cancel:true }, { key:'import', label:'Importa' }] }).whenClosed.then(res2 => {
+        if(res2.action!=='import') return;
+        const overwrite = res2.modalEl.querySelector('#overwriteAll')?.checked;
+        if(!build.newCount && !overwrite){ uiAlert('Nessuna nuova transazione'); return; }
+        if(overwrite){
+          try { localStorage.setItem(`backup_club_${club.id}_`+Date.now(), JSON.stringify(club.transactions||[])); } catch(e){}
+          club.transactions = [];
+        }
+        if(overwrite){
+          let bal=0; build.txs.forEach(t=>{ t.prev=bal; t.delta = t.sign==='-'?-t.amount : t.amount; t.after = t.prev + t.delta; bal = t.after; });
+        }
+        club.transactions = (club.transactions||[]).concat(build.txs);
+        recomputeClubTransactions(club);
+        saveData(data);
+        renderFinance(); announce('Storico importato');
+      });
+    });
+    // Setup file handler
+    setTimeout(()=>{ const fileInput = document.getElementById('histFile'); const ta = document.getElementById('histRaw'); if(!fileInput||!ta) return; fileInput.addEventListener('change', async ()=> {
+      const f = fileInput.files[0]; if(!f) return; try {
+        if(/\.xlsx$/i.test(f.name) || /\.xls$/i.test(f.name)) { ta.value = 'Caricamento XLSX...'; const csv = await xlsxFileToCSV(f); ta.value = csv; announce('File Excel convertito'); }
+        else if(/\.csv$/i.test(f.name)) { const fr=new FileReader(); fr.onload=e=> { ta.value = e.target.result; announce('CSV caricato'); }; fr.readAsText(f); }
+        else { uiAlert('Formato non supportato'); }
+      } catch(err){ uiAlert('Errore lettura Excel: '+err.message); ta.value=''; }
+    }); },50);
+  }
+  function openAstaGroupModal(groupKey) {
+    const groups = {};
+    (club.transactions||[]).forEach(t=> { if(t.meta && t.meta.auction) { const k = t.meta.auction.phase || 'sconosciuta'; groups[k] = groups[k]||[]; groups[k].push(t); }});
+    const keys = Object.keys(groups);
+    if(!keys.length) { uiAlert('Nessun gruppo asta rilevato'); return; }
+    const root = document.getElementById('modalRoot');
+    let body = '';
+    keys.forEach(k => {
+      const list = groups[k].sort((a,b)=> a.date<b.date? -1:1).map(t=> `<li>${formatItDate(t.date)}: ${escapeHtml(t.description||'')} <strong>${t.sign==='-'?'-':'+'}${t.amount}</strong></li>`).join('');
+      body += `<details ${groupKey===k?'open':''}><summary style='cursor:pointer;'>Fase ${escapeHtml(k)} (${list.split('<li>').length-1})</summary><ul style='margin:4px 0 10px 18px;font-size:12px;'>${list}</ul></details>`;
+    });
+    root.innerHTML = `<div class='modal-overlay'><div class='modal' role='dialog' aria-modal='true'>
+      <h3>Gruppi Asta</h3>
+      <div style='max-height:60vh;overflow:auto;'>${body}</div>
+      <div class='modal-actions'>
+        <button class='btn-sm' id='closeGroups'>Chiudi</button>
+      </div>
+    </div></div>`;
+    document.getElementById('closeGroups').addEventListener('click', ()=> root.innerHTML='');
+  }
+  document.getElementById('yearFilter').addEventListener('change', ()=> { renderFinance(); announce('Filtro anno aggiornato'); });
+  renderRoster();
+})();
+</script>
+</body>
+</html>
